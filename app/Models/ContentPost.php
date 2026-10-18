@@ -13,9 +13,13 @@ class ContentPost extends Model
     protected $fillable = [
         'team_id',
         'tiktok_post_id',
+        'title', // <-- Tambahkan ini
+        'media_type',
         'original_caption',
         'ai_generated_caption',
         'video_url',
+        'media_gallery',
+        'caption_type',
         'status',
         'scheduled_at',
         'published_at',
@@ -26,6 +30,7 @@ class ContentPost extends Model
 
     protected $casts = [
         'platform_post_ids' => 'array',
+        'media_gallery'     => 'array', 
         'scheduled_at' => 'datetime',
         'published_at' => 'datetime',
     ];

@@ -37,16 +37,7 @@
             </ul>
         </div>
 
-        {{-- Langkah 3 --}}
-        <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(183,110,121,0.25); border-radius: 14px; padding: 22px;">
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                <span style="background: #5B0E2D; color: #E7D6C8; font-weight: 800; width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; border: 1px solid #B76E79;">3</span>
-                <h3 style="font-size: 16px; font-weight: 700; color: #fff; margin: 0;">Pantau Percakapan di Menu "Inbox"</h3>
-            </div>
-            <p style="font-size: 13px; color: #9CA3AF; line-height: 1.5; margin: 0 0 8px 38px;">
-                Sistem melakukan pooling setiap 5 menit ke Composio. Setiap komentar atau pesan masuk akan dibalas oleh Gemini AI secara otomatis. Anda juga dapat membuka detail percakapan dan mengirim balasan manual kapan saja melalui kolom input chat.
-            </p>
-        </div>
+        
 
         {{-- Langkah 4 --}}
         <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(183,110,121,0.25); border-radius: 14px; padding: 22px;">

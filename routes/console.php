@@ -9,6 +9,6 @@ Artisan::command('inspire', function () {
 
 use Illuminate\Support\Facades\Schedule;
 
-Schedule::command('brandpilot:poll-inbox')->everyFiveMinutes();
+// Schedule::command('brandpilot:poll-inbox')->everyFiveMinutes();
 Schedule::command('brandpilot:poll-tiktok')->everyThirtyMinutes();
 Schedule::command('brandpilot:publish-scheduled')->everyMinute();

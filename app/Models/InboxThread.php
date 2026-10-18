@@ -11,6 +11,7 @@ class InboxThread extends Model
 {
     use HasFactory;
 
+    // app/Models/InboxThread.php
     protected $fillable = [
         'team_id',
         'platform',
@@ -20,10 +21,14 @@ class InboxThread extends Model
         'sender_avatar',
         'last_snippet',
         'last_interaction_at',
+        'is_replied',  // <-- Tambahkan
+        'replied_at',  // <-- Tambahkan
     ];
 
     protected $casts = [
         'last_interaction_at' => 'datetime',
+        'is_replied'          => 'boolean',
+        'replied_at'          => 'datetime',
     ];
 
     public function team(): BelongsTo

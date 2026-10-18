@@ -38,13 +38,15 @@
         <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1); border-radius: 18px; padding: 28px;">
             <h3 style="font-size: 18px; font-weight: 700; color: #E7D6C8; margin-top: 0; margin-bottom: 16px;">Semua Fitur Termasuk:</h3>
             <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 14px;">
+                {{-- Ganti daftar array fitur di manage-subscription.blade.php --}}
                 @foreach([
                     'Auto Sindikasi TikTok ke FB Reels, IG Reels & YouTube Shorts',
-                    'Dukungan Custom Delay (30 Menit) atau Jadwal Jam Tertentu',
-                    'Smart Auto-Caption Gemini AI (Judul, Hook & Tagar Relevan)',
-                    'Smart Inbox Auto-Reply (Balas DM FB/IG & Komentar YT Otomatis)',
-                    'Mode Polling Tiap 5 Menit (Hemat Kuota API Composio)',
-                    'Dashboard Agregasi Statistik Views & Komentar Real-time',
+                    'Dukungan Penuh Format Video & Carousel Multi-Foto',
+                    'Multimodal AI Gemini 3.1 Flash Lite (Video & Photo Understanding)',
+                    'Pemisahan Judul Click-Worthy & Deskripsi Ber-Hook Tinggi',
+                    'Bebas Watermark TikTok Kualitas HD Asli',
+                    'Pilihan Jadwal Fleksibel (Langsung Tayang vs Jam Tertentu)',
+                    'Dashboard Terpadu Agregasi Views & Performa Konten',
                 ] as $feature)
                     <li style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: #E5E7EB;">
                         <span style="color: #34d399; font-weight: bold;">✓</span>

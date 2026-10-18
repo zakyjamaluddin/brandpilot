@@ -190,6 +190,19 @@
                 <p class="bp-subtext">
                     Sistem autopilot media sosial Anda siap mendistribusikan konten TikTok ke FB, IG, dan YouTube.
                 </p>
+
+                {{-- Tombol Onboarding Cepat untuk User Baru --}}
+                <div style="display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
+                    {{-- Tombol Ganti Password & Nama Panggilan --}}
+                    {{-- resources/views/filament/widgets/greeting-widget.blade.php --}}
+
+                    <a href="{{ \App\Filament\Pages\Profile::getUrl() }}" 
+                    style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 8px; font-size: 11px; font-weight: 700; background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(231, 214, 200, 0.4); color: #F4ECE5; text-decoration: none; transition: all 0.2s;">
+                        ⚙️ Atur Nama Brand & Ganti Password
+                    </a>
+
+                    
+                </div>
             </div>
 
             {{-- Bagian Info Kanan (Rose Gold Card) --}}

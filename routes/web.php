@@ -2,8 +2,10 @@
 
 use Illuminate\Support\Facades\Route;
 
+// routes/web.php
+
 Route::get('/', function () {
-    return view('welcome');
+    return view('landing');
 });
 
 use App\Http\Controllers\ComposioCallbackController;

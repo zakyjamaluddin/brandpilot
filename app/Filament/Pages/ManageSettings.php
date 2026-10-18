@@ -96,17 +96,17 @@ class ManageSettings extends Page
                             ->visible(fn ($get) => $get('auto_caption_enabled')),
                     ]),
 
-                Section::make('Gemini AI: Smart Auto-Reply')
-                    ->schema([
-                        Toggle::make('auto_reply_enabled')
-                            ->label('Aktifkan Auto Reply AI (Polling 5 Menit)')
-                            ->live(),
+                // Section::make('Gemini AI: Smart Auto-Reply')
+                //     ->schema([
+                //         Toggle::make('auto_reply_enabled')
+                //             ->label('Aktifkan Auto Reply AI (Polling 5 Menit)')
+                //             ->live(),
 
-                        Textarea::make('brand_knowledge_base')
-                            ->label('Brand Knowledge Base (Konteks Bisnis)')
-                            ->rows(4)
-                            ->visible(fn ($get) => $get('auto_reply_enabled')),
-                    ]),
+                //         Textarea::make('brand_knowledge_base')
+                //             ->label('Brand Knowledge Base (Konteks Bisnis)')
+                //             ->rows(4)
+                //             ->visible(fn ($get) => $get('auto_reply_enabled')),
+                //     ]),
             ])
             ->statePath('data');
     }

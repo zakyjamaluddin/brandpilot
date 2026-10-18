@@ -163,30 +163,42 @@ class PollSocialInbox extends Command
             // ==========================================
             // 2. POLLING KOMENTAR INSTAGRAM
             // ==========================================
-            elseif ($integration->platform === 'instagram') {
-                $res = $composio->executeAction($team, 'INSTAGRAM_GET_MEDIA_COMMENTS', [
-                    'media_id' => (string) $objectId,
-                ], $connId);
+            // app/Console/Commands/PollSocialInbox.php (Di method fetchIncomingMessages pada blok Instagram)
 
-                $comments = $res['data']['data']['data'] ?? ($res['data']['data'] ?? []);
-                if (is_array($comments)) {
-                    foreach ($comments as $cmt) {
-                        $commentId = $cmt['id'] ?? null;
-                        $commentText = $cmt['text'] ?? '';
+        elseif ($integration->platform === 'instagram') {
+            $res = $composio->executeAction($team, 'INSTAGRAM_GET_IG_MEDIA_COMMENTS', [
+                'ig_media_id' => (string) $objectId,
+            ], $connId);
 
-                        if ($commentId && !empty($commentText)) {
-                            if (! \App\Models\InboxThread::where('external_id', $commentId)->exists()) {
-                                $messages[] = [
-                                    'external_id' => (string) $commentId,
-                                    'type'        => 'comment',
-                                    'sender_name' => $cmt['username'] ?? 'Instagram User',
-                                    'text'        => $commentText,
-                                ];
-                            }
-                        }
+            $raw = $res['data']['data']['data']
+                ?? ($res['data']['data']
+                ?? ($res['data']['response_data']['data'] ?? []));
+
+            if (isset($raw['data']) && is_array($raw['data'])) {
+                $raw = $raw['data'];
+            }
+
+            if (is_array($raw)) {
+                foreach ($raw as $c) {
+                    $commentId = $c['id'] ?? null;
+                    $commentText = $c['text'] ?? ($c['message'] ?? '');
+
+                    // Abaikan jika ID kosong
+                    if (empty($commentId)) {
+                        continue;
+                    }
+
+                    if (! \App\Models\InboxThread::where('external_id', $commentId)->exists()) {
+                        $messages[] = [
+                            'external_id' => (string) $commentId,
+                            'type'        => 'comment',
+                            'sender_name' => $c['username'] ?? 'Instagram User',
+                            'text'        => (string) $commentText,
+                        ];
                     }
                 }
             }
+        }
 
             // ==========================================
             // 3. POLLING KOMENTAR YOUTUBE
