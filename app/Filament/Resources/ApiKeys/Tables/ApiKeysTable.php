@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ApiKeys\Tables;
 
+use App\Models\ApiKey;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -29,8 +30,17 @@ class ApiKeysTable
                     ->searchable()
                     ->weight('bold'),
 
-                TextColumn::make('assignedTeam.name')
+                // PERBAIKAN DI KOLOM INI:
+                TextColumn::make('assigned_tenant')
                     ->label('Digunakan Oleh Tenant')
+                    ->state(function (ApiKey $record) {
+                        return match ($record->provider) {
+                            'composio' => \App\Models\Team::where('composio_api_key_id', $record->id)->value('name'),
+                            'gemini'   => \App\Models\Team::where('gemini_api_key_id', $record->id)->value('name'),
+                            'apify'    => \App\Models\Team::where('apify_api_key_id', $record->id)->value('name'),
+                            default    => null,
+                        };
+                    })
                     ->placeholder('Tersedia (Belum Terpakai)')
                     ->badge()
                     ->color(fn ($state) => $state ? 'success' : 'gray'),

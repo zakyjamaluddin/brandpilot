@@ -24,6 +24,8 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Illuminate\Support\Facades\Gate;
+use App\Http\Middleware\EnsureTenantHasActiveSubscription;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -40,6 +42,22 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::HEAD_END,
                 fn () => view('filament.custom-ambient-theme')
+            )
+            // 2. METADATA PWA & SERVICE WORKER
+            ->renderHook(
+                PanelsRenderHook::HEAD_END,
+                fn () => view('filament.pwa-head')
+            )
+
+            // 3. TOMBOL STICKY INSTALL PWA DI DASAR SIDEBAR:
+            ->renderHook(
+                PanelsRenderHook::SIDEBAR_FOOTER,
+                fn () => view('filament.pwa-sidebar-button')
+            )
+
+            ->renderHook(
+                PanelsRenderHook::PAGE_START,
+                fn () => view('filament.subscription-banner')
             )
 
             ->userMenuItems([
@@ -84,7 +102,10 @@ class AdminPanelProvider extends PanelProvider
 
             // 3. Plugin Shield
             ->plugins([
-                FilamentShieldPlugin::make(),
+                FilamentShieldPlugin::make()
+                    ->globallySearchable(false)
+                    ->scopeToTenant(true)
+                    ->tenantOwnershipRelationshipName('team'),
             ])
 
             // 4. Resource & Pages
@@ -110,8 +131,24 @@ class AdminPanelProvider extends PanelProvider
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
             ])
+            ->tenantMiddleware([
+                EnsureTenantHasActiveSubscription::class,
+            ])
+            ->passwordReset()
             ->authMiddleware([
                 Authenticate::class,
             ]);
+    }
+
+    public function boot(): void
+    {
+        // 2. KUNCI SHIELD: Super Admin otomatis diizinkan membuka semua menu
+        Gate::before(function ($user, $ability) {
+            if ($user->id === 1 || $user->roles()->where('name', 'super_admin')->exists()) {
+                return true;
+            }
+
+            return null;
+        });
     }
 }

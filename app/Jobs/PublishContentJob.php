@@ -199,6 +199,13 @@ class PublishContentJob implements ShouldQueue
                 Log::error("Gagal publish ke {$integration->platform}: " . $e->getMessage());
             }
         }
+        // app/Jobs/PublishContentJob.php (di bagian akhir setelah update status published)
+        if (!empty($platformPostIds)) {
+            // Kirim Push Notification ke seluruh member/owner tenant ini
+            foreach ($team->members as $member) {
+                $member->notify(new \App\Notifications\ContentPublishedPushNotification($this->post));
+            }
+        }
 
         Log::info("Publish selesai untuk ContentPost #{$this->post->id}. Berhasil ke: " . implode(', ', $publishedPlatforms));
     }

@@ -12,10 +12,12 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection;
 use Spatie\Permission\Traits\HasRoles; // Persiapan untuk Shield nanti
+use NotificationChannels\WebPush\HasPushSubscriptions;
 
 class User extends Authenticatable implements FilamentUser, HasTenants
 {
     use HasFactory, Notifiable, HasRoles;
+    use HasPushSubscriptions;
 
     protected $fillable = [
         'name',

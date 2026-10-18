@@ -12,3 +12,4 @@ use Illuminate\Support\Facades\Schedule;
 // Schedule::command('brandpilot:poll-inbox')->everyFiveMinutes();
 Schedule::command('brandpilot:poll-tiktok')->everyThirtyMinutes();
 Schedule::command('brandpilot:publish-scheduled')->everyMinute();
+Schedule::command('brandpilot:check-subscription-push')->dailyAt('09:00');

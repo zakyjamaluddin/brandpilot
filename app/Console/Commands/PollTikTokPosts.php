@@ -26,7 +26,15 @@ class PollTikTokPosts extends Command
         $this->info("Menjalankan siklus polling konten TikTok...");
 
         // 1. Tarik tenant aktif yang sudah menyetel URL TikTok dan hak kepemilikan
+        // $teams = Team::where('subscription_status', 'active')
+        //     ->whereNotNull('tiktok_profile_url')
+        //     ->where('tiktok_ownership_confirmed', true)
+        //     ->get();
         $teams = Team::where('subscription_status', 'active')
+            ->where(function ($query) {
+                $query->whereNull('subscription_expires_at')
+                      ->orWhere('subscription_expires_at', '>', now());
+            })
             ->whereNotNull('tiktok_profile_url')
             ->where('tiktok_ownership_confirmed', true)
             ->get();

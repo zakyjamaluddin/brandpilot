@@ -17,10 +17,22 @@ class TeamsTable
             ->columns([
                 TextColumn::make('name')->weight('bold')->searchable(),
                 TextColumn::make('slug'),
+                TextColumn::make('subscription_expires_at')
+                    ->label('Masa Aktif Hingga')
+                    ->dateTime('d M Y, H:i')
+                    ->sortable(),
+
                 TextColumn::make('composioKey.label')->label('Composio Key')->placeholder('Belum Diatur'),
                 TextColumn::make('geminiKey.label')->label('Gemini Key')->placeholder('Belum Diatur'),
                 TextColumn::make('apifyKey.label')->label('Apify Key')->placeholder('Belum Diatur'),
-                BadgeColumn::make('subscription_status')->label('Status'),
+
+                BadgeColumn::make('subscription_status')
+                    ->label('Status')
+                    ->colors([
+                        'success' => 'active',
+                        'warning' => 'trial',
+                        'danger'  => 'expired',
+                    ]),
             ])
             ->filters([
                 //

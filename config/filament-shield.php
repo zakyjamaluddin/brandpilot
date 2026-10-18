@@ -21,6 +21,7 @@ return [
 
     'shield_resource' => [
         'slug' => 'shield/roles',
+        'is_scoped_to_tenant' => false,
         'show_model_path' => true,
         'cluster' => null,
         'tabs' => [
