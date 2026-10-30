@@ -103,48 +103,129 @@ class ComposioService
      */
     public function syncConnectedAccounts(Team $team): void
     {
+        $userId = "brandpilot_tenant_{$team->id}_{$team->slug}";
+        $platforms = ['facebook', 'instagram', 'youtube'];
+
         try {
-            $userId = "brandpilot_tenant_{$team->id}_{$team->slug}";
+            // WAJIB paginasi + limit besar: tanpa ini sebagian koneksi (mis. Facebook)
+            // jatuh di luar halaman pertama dan platform ikut ditandai terputus.
+            $items = [];
+            $cursor = null;
 
-            $res = $this->client($team)->get('/connected_accounts', [
-                'user_id' => $userId,
-            ]);
-
-            $items = $res->json('items') ?? ($res->json('data') ?? []);
-            if (empty($items)) {
-                return;
-            }
-
-            foreach ($items as $item) {
-                $slug = strtolower($item['toolkit']['slug'] ?? ($item['appName'] ?? ''));
-                $status = strtoupper($item['status'] ?? ($item['data']['status'] ?? ''));
-
-                if (in_array($slug, ['facebook', 'instagram', 'youtube']) && in_array($status, ['ACTIVE', 'CONNECTED', 'SUCCESS'])) {
-                    SocialIntegration::updateOrCreate(
-                        [
-                            'team_id'  => $team->id,
-                            'platform' => $slug,
-                        ],
-                        [
-                            'composio_connection_id' => $item['id'],
-                            'account_name'           => ucfirst($slug) . ' Connected',
-                            'is_connected'           => true,
-                        ]
-                    );
+            do {
+                $params = ['user_id' => $userId, 'limit' => 100];
+                if ($cursor) {
+                    $params['cursor'] = $cursor;
                 }
-            }
+
+                $res = $this->client($team)->get('/connected_accounts', $params);
+                $page = $res->json('items') ?? ($res->json('data') ?? []);
+
+                if (is_array($page)) {
+                    $items = array_merge($items, $page);
+                }
+
+                $cursor = $res->json('next_cursor') ?? $res->json('nextCursor');
+            } while ($cursor && count($items) < 1000);
         } catch (Throwable $e) {
             Log::error("Exception syncConnectedAccounts untuk Tenant [{$team->slug}]: " . $e->getMessage());
+
+            return;
         }
+
+        $active = [];
+
+        foreach ($items as $item) {
+            // Pastikan akun benar-benar milik tenant ini (jangan percaya filter server saja).
+            if (($item['user_id'] ?? null) !== $userId) {
+                continue;
+            }
+
+            $slug = strtolower($item['toolkit']['slug'] ?? ($item['appName'] ?? ''));
+            $status = strtoupper($item['status'] ?? ($item['data']['status'] ?? ''));
+
+            if (! in_array($slug, $platforms, true) || $status !== 'ACTIVE') {
+                continue;
+            }
+
+            $active[$slug][] = $item;
+        }
+
+        // Urutkan tiap platform: koneksi terbaru lebih dulu (cadangan bila belum ada pilihan tersimpan)
+        foreach ($active as $slug => $list) {
+            usort($list, fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+            $active[$slug] = $list;
+        }
+
+        foreach ($platforms as $platform) {
+            if (! empty($active[$platform])) {
+                // Pertahankan koneksi yang sudah tersimpan selama masih ACTIVE,
+                // supaya tidak berpindah akun saat tenant punya beberapa koneksi.
+                $current = SocialIntegration::where('team_id', $team->id)
+                    ->where('platform', $platform)
+                    ->first();
+
+                $item = null;
+                if ($current?->composio_connection_id) {
+                    foreach ($active[$platform] as $candidate) {
+                        if (($candidate['id'] ?? null) === $current->composio_connection_id) {
+                            $item = $candidate;
+                            break;
+                        }
+                    }
+                }
+
+                $item ??= $active[$platform][0];
+
+                SocialIntegration::updateOrCreate(
+                    [
+                        'team_id'  => $team->id,
+                        'platform' => $platform,
+                    ],
+                    [
+                        'composio_connection_id' => $item['id'],
+                        'account_name'           => ucfirst(str_replace('_', ' ', (string) ($item['word_id'] ?? $item['alias'] ?? $platform))),
+                        'is_connected'           => true,
+                    ]
+                );
+
+                continue;
+            }
+
+            // Tidak ada koneksi ACTIVE di Composio: status wajib ikut terputus,
+            // supaya tidak ada lagi "aktif" palsu dari data lama.
+            SocialIntegration::where('team_id', $team->id)
+                ->where('platform', $platform)
+                ->update([
+                    'is_connected'           => false,
+                    'composio_connection_id' => null,
+                    'account_name'           => null,
+                ]);
+        }
+    }
+
+    /**
+     * API key Composio dipakai BERSAMA oleh semua tenant (satu aplikasi, banyak entity).
+     * Connected account tiap tenant tetap terpisah lewat user_id brandpilot_tenant_{id}_{slug}.
+     */
+    protected function apiKeyFor(Team $team): string
+    {
+        $key = trim((string) \App\Models\ApiKey::query()
+            ->where('provider', 'composio')
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->value('api_key'));
+
+        if ($key === '') {
+            throw new Exception('Composio API Key belum tersedia. Tambahkan di menu API Keys (provider: Composio).');
+        }
+
+        return $key;
     }
 
     protected function client(Team $team)
     {
-        $apiKey = $team->composioKey?->api_key ?: config('services.composio.key');
-
-        if (empty($apiKey)) {
-            throw new Exception("Workspace [{$team->name}] belum memiliki Composio API Key yang aktif.");
-        }
+        $apiKey = $this->apiKeyFor($team);
 
         return Http::withHeaders([
             'x-api-key'    => trim($apiKey),
@@ -287,7 +368,7 @@ class ComposioService
      */
     public function uploadFile(Team $team, string $fileContentOrPath, string $filename = 'video.mp4', string $mimeType = 'video/mp4'): array
     {
-        $apiKey = trim($team->composioKey?->api_key ?: config('services.composio.key'));
+        $apiKey = $this->apiKeyFor($team);
 
         if (file_exists($fileContentOrPath)) {
             $contents = file_get_contents($fileContentOrPath);
@@ -342,7 +423,7 @@ class ComposioService
      */
     public function uploadYoutubeVideo(Team $team, string $videoSource, array $meta, ?string $connectedAccountId = null): array
     {
-        $apiKey  = trim($team->composioKey?->api_key ?: config('services.composio.key'));
+        $apiKey  = $this->apiKeyFor($team);
         $base    = rtrim(config('services.composio.base_url', 'https://backend.composio.dev/api/v3'), '/');
         $mime    = $meta['mimetype'] ?? 'video/mp4';
         $account = $connectedAccountId ?: $this->activeYoutubeAccountId($team);
@@ -425,6 +506,18 @@ return ['success' => false, 'error' => 'Gagal membuat sesi upload YouTube: ' . $
         $res   = $this->executeAction($team, 'YOUTUBE_VIDEO_DETAILS', [
             'id' => $videoId, 'part' => 'status,processingDetails',
         ], $connectedAccountId);
+
+        // Tool ini bisa hilang dari katalog Composio (404 ToolNotFound).
+        // Jangan sampai kegagalan verifikasi dilaporkan sebagai "video hilang".
+        if (! ($res['success'] ?? false)) {
+            Log::warning('YouTube: verifikasi status tidak tersedia', [
+                'video' => $videoId,
+                'error' => $res['error'] ?? null,
+            ]);
+
+            return 'processing';
+        }
+
         $items = $res['data']['data']['response_data']['items'] ?? [];
         if (! $items) {
             return null;
@@ -435,7 +528,7 @@ return ['success' => false, 'error' => 'Gagal membuat sesi upload YouTube: ' . $
     /** ID connected account YouTube yang ACTIVE (hindari akun EXPIRED). */
     public function activeYoutubeAccountId(Team $team): ?string
     {
-        $apiKey = trim($team->composioKey?->api_key ?: config('services.composio.key'));
+        $apiKey = $this->apiKeyFor($team);
         $base   = rtrim(config('services.composio.base_url', 'https://backend.composio.dev/api/v3'), '/');
 
         $resp = Http::withHeaders(['x-api-key' => $apiKey])->timeout(60)
@@ -532,6 +625,52 @@ return ['success' => false, 'error' => 'Gagal membuat sesi upload YouTube: ' . $
     /**
      * Mengambil Page Access Token resmi milik Halaman Facebook
      */
+    /**
+     * Ambil page_id Facebook pertama yang bisa dipakai untuk posting.
+     * Dipakai saat metadata integrasi belum menyimpan page_id.
+     */
+    public function facebookPageId(Team $team, ?string $connectedAccountId = null): ?string
+    {
+        $pages = $this->facebookPages($team, $connectedAccountId);
+
+        return $pages[0]['id'] ?? null;
+    }
+
+    /**
+     * Daftar halaman Facebook yang benar-benar bisa diakses oleh koneksi ini.
+     * Dipakai untuk memvalidasi page_id tersimpan agar tidak pernah memposting
+     * ke halaman milik tenant/brand lain.
+     *
+     * @return array<int, array{id: string, name: string}>
+     */
+    public function facebookPages(Team $team, ?string $connectedAccountId = null): array
+    {
+        $res = $this->executeAction($team, 'FACEBOOK_GET_USER_PAGES', [], $connectedAccountId);
+
+        if (! ($res['success'] ?? false)) {
+            Log::warning('Facebook: gagal mengambil daftar halaman', ['conn' => $connectedAccountId]);
+
+            return [];
+        }
+
+        $payload = $res['data']['data'] ?? ($res['data'] ?? []);
+        $pages = $payload['response_data']['data']
+            ?? ($payload['data']['data'] ?? ($payload['data'] ?? []));
+
+        if (! is_array($pages)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($pages as $page) {
+            if (! empty($page['id'])) {
+                $out[] = ['id' => (string) $page['id'], 'name' => (string) ($page['name'] ?? '')];
+            }
+        }
+
+        return $out;
+    }
+
     public function getPageAccessToken(Team $team, string $pageId, ?string $connectedAccountId = null): ?string
     {
         try {

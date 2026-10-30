@@ -9,6 +9,7 @@ use App\Models\Team;
 use App\Models\TenantSetting;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -19,13 +20,47 @@ class ComposioGmailWebhookController extends Controller
 {
     public function handle(Request $request)
     {
+        // Webhook ini bisa memperpanjang langganan, jadi wajib bertoken.
+        // Token dikirim lewat header X-Webhook-Token atau query ?token=.
+        $expected = (string) config('services.composio.webhook_secret');
+
+        if ($expected !== '') {
+            $given = (string) ($request->header('X-Webhook-Token') ?: $request->query('token', ''));
+
+            if (! hash_equals($expected, $given)) {
+                abort(403, 'Token webhook tidak valid.');
+            }
+        }
+
         $payload = $request->all();
         Log::info('Composio Core Gmail Webhook diterima:', $payload);
 
-        // Ambil data subjek, isi email, dan pengirim
-        $subject = $payload['subject'] ?? ($payload['data']['subject'] ?? '');
-        $body    = $payload['body'] ?? ($payload['snippet'] ?? ($payload['data']['snippet'] ?? ''));
-        $sender  = $payload['from'] ?? ($payload['data']['from'] ?? '');
+        // Bentuk event Composio bisa berbeda antar versi: isi email ada di `data.*`
+        // (message_text / payload.body.data base64 / preview.body) atau `payload.*`.
+        $event = $payload['data'] ?? ($payload['payload'] ?? $payload);
+
+        $subject = (string) ($event['subject'] ?? ($event['preview']['subject'] ?? ($payload['subject'] ?? '')));
+        $sender  = (string) ($event['sender'] ?? ($event['from'] ?? ($payload['from'] ?? '')));
+
+        $rawBody = $event['message_text']
+            ?? ($event['payload']['body']['data'] ?? null)
+            ?? ($event['body']['data'] ?? null)
+            ?? ($event['body'] ?? null);
+
+        if (is_string($rawBody) && $rawBody !== '' && ! str_contains($rawBody, '<')) {
+            $decoded = base64_decode($rawBody, true);
+
+            if ($decoded !== false) {
+                $rawBody = $decoded;
+            }
+        }
+
+        $body = is_string($rawBody) ? strip_tags(html_entity_decode($rawBody)) : '';
+        $body = trim((string) preg_replace('/\s+/', ' ', $body));
+
+        if ($body === '') {
+            $body = trim((string) ($event['preview']['body'] ?? ($event['snippet'] ?? '')));
+        }
 
         // 1. Validasi: Pastikan email berkaitan dengan pembelian Lynk.id
         $isLynkEmail = str_contains(strtolower($sender), 'lynk.id') || 
@@ -37,17 +72,37 @@ class ComposioGmailWebhookController extends Controller
             return response()->json(['status' => 'ignored', 'message' => 'Bukan email transaksi Lynk.id.'], 200);
         }
 
+        // 1b. Hanya produk BrandPilot yang membuka akses — produk lain di Lynk.id diabaikan.
+        if (! str_contains(strtolower($subject . ' ' . $body), 'brandpilot')) {
+            Log::info('Email Lynk.id diabaikan: produk bukan BrandPilot.', ['subject' => $subject]);
+
+            return response()->json(['status' => 'ignored', 'message' => 'Produk bukan BrandPilot.'], 200);
+        }
+
         // 2. Ekstrak Email Pembeli dari Isi Email
         $buyerEmail = $this->extractBuyerEmail($body);
 
         if (! $buyerEmail) {
-            Log::warning('Gagal menemukan email pembeli pada pesan Lynk.id', ['body' => $body]);
-            return response()->json(['status' => 'error', 'message' => 'Email pembeli tidak terdeteksi.'], 400);
+            // Email "Receipt for your purchase" (salinan untuk pembeli) tidak memuat email pembeli.
+            // Itu bukan notifikasi penjualan, jadi cukup diabaikan — bukan error.
+            Log::info('Email Lynk.id tanpa email pembeli, dilewati.', ['subject' => $subject]);
+
+            return response()->json(['status' => 'ignored', 'message' => 'Email tanpa email pembeli.'], 200);
         }
 
         // 3. Tentukan Durasi Paket (1, 6, atau 12 Bulan)
         $durationMonths = $this->detectDurationMonths($subject . ' ' . $body);
         Log::info("Transaksi Lynk.id valid: Email [{$buyerEmail}], Durasi [{$durationMonths} Bulan]");
+
+        // Idempotensi: klaim message_id setelah email lolos validasi, supaya satu email
+        // hanya diproses sekali (retry Composio tidak menambah masa aktif lagi).
+        $messageId = (string) ($payload['data']['message_id'] ?? ($payload['id'] ?? ''));
+
+        if ($messageId !== '' && ! Cache::add('composio:email:' . $messageId, true, now()->addDays(30))) {
+            Log::info("Email {$messageId} sudah pernah diproses, dilewati.");
+
+            return response()->json(['status' => 'duplicate', 'message' => 'Email ini sudah diproses.'], 200);
+        }
 
         // 4. EKSEKUSI: USER BARU vs USER LAMA
         $user = User::where('email', $buyerEmail)->first();

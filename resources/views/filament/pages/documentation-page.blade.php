@@ -79,7 +79,8 @@
             </p>
             <ul class="doc-list" style="margin: 0 0 0 60px; font-size: 13.5px; line-height: 1.7;">
                 <li><b>Profil TikTok:</b> Masukkan URL profil TikTok Anda dan centang konfirmasi hak cipta kepemilikan video.</li>
-                <li><b>Mode Distribusi:</b> Pilih antara <i>Segera Diposting</i> (begitu terdeteksi saat siklus pooling 30 menit) atau <i>Jadwal Statis</i> pada jam-jam ramai audiens Anda.</li>
+                <li><b>Distribusi otomatis:</b> Setiap video baru masuk antrean dan tayang pada pemeriksaan berikutnya — paling lambat ±30 menit pada 08.00–20.00 WIB, dan ±2 jam pada 20.00–08.00 WIB.</li>
+                <li><b>Apify Token:</b> wajib diisi (lihat langkah 3) agar video baru bisa terdeteksi.</li>
                 <li><b>Gemini Multimodal AI:</b> AI akan otomatis "menonton" video atau "mengamati" foto carousel Anda untuk menghasilkan <b>Judul</b> dan <b>Deskripsi</b> yang sangat relevan.</li>
             </ul>
         </div>
@@ -88,6 +89,35 @@
         <div class="doc-card" style="border-radius: 16px; padding: 24px 28px;">
             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
                 <span class="doc-badge" style="font-weight: 800; width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 14px;">3</span>
+                <h3 class="doc-title" style="font-size: 17px; font-weight: 700; margin: 0;">Ambil &amp; Pasang Apify Token</h3>
+            </div>
+            <p class="doc-text" style="font-size: 13.5px; line-height: 1.6; margin: 0 0 12px 44px;">
+                BrandPilot memakai akun Apify milik Anda sendiri untuk memeriksa video baru di profil TikTok.
+                Gratis, tanpa kartu kredit, dan kuotanya tidak dibatasi BrandPilot.
+            </p>
+            <ol class="doc-list" style="margin: 0 0 14px 60px; font-size: 13.5px; line-height: 1.7;">
+                <li>Buka <a href="https://apify.com" target="_blank" rel="noopener" style="color:#7c2a41;font-weight:700;text-decoration:underline;">apify.com</a> → <b>Sign up</b> (email atau Google).</li>
+                <li>Buka <a href="https://console.apify.com/actors/integrations" target="_blank" rel="noopener" style="color:#7c2a41;font-weight:700;text-decoration:underline;">console.apify.com/actors/integrations</a>.</li>
+                <li>Klik tombol <b>API</b> di <b>pojok kanan atas</b> halaman, lalu <b>Copy</b> tokennya.</li>
+                <li>Tempel di menu <b>Setting → Apify Token</b>, tekan <b>Simpan Perubahan</b>. Token langsung diverifikasi ke Apify.</li>
+            </ol>
+            <figure style="margin: 0 0 10px 44px;">
+                <img src="{{ asset('images/tutorial/apify-token.jpg') }}"
+                     alt="Halaman Integrations Apify dengan tombol API di pojok kanan atas"
+                     style="width:100%; max-width:760px; border-radius:12px; border:1px solid #e7e5e4; box-shadow:0 6px 18px rgba(0,0,0,0.08);">
+                <figcaption class="doc-text" style="font-size:12px;margin-top:8px;">
+                    Tombol <b>API</b> di kanan atas halaman Integrations — tempat token diambil.
+                </figcaption>
+            </figure>
+            <p class="doc-text" style="font-size:12.5px; line-height:1.6; margin: 0 0 0 44px;">
+                Kuota free plan Apify $5/bulan. Pemakaian BrandPilot ±$3,78/bulan (30 pemeriksaan/hari), jadi masih di dalam kuota.
+            </p>
+        </div>
+
+        {{-- LANGKAH 4 --}}
+        <div class="doc-card" style="border-radius: 16px; padding: 24px 28px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                <span class="doc-badge" style="font-weight: 800; width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 14px;">4</span>
                 <h3 class="doc-title" style="font-size: 17px; font-weight: 700; margin: 0;">Pembayaran & Perpanjangan Otomatis via Lynk.id</h3>
             </div>
             <p class="doc-text" style="font-size: 13.5px; line-height: 1.6; margin: 0 0 0 44px;">

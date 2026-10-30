@@ -15,14 +15,13 @@ class ApiKeyForm
         return $schema
             ->components([
                 Section::make('Kredensial API Eksternal')
-                ->description('Simpan dan alokasikan API key untuk tenant BrandPilot.')
+                ->description('Key Composio dan Gemini dipakai BERSAMA oleh semua tenant — tidak perlu di-assign per tenant. Token Apify tidak lagi di sini: setiap tenant mengisi tokennya sendiri di menu Setting.')
                 ->schema([
                     Radio::make('provider')
                         ->label('Layanan Provider')
                         ->options([
-                            'composio' => 'Composio v3.1',
-                            'gemini'   => 'Google Gemini AI',
-                            'apify'    => 'Apify (TikTok Scraper)',
+                            'composio' => 'Composio v3.1 (shared)',
+                            'gemini'   => 'Google Gemini AI (shared, fallback antar-key)',
                         ])
                         ->required()
                         ->inline(),

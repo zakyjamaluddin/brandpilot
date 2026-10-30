@@ -12,6 +12,13 @@ class EnsureTenantHasActiveSubscription
 {
     public function handle(Request $request, Closure $next): Response
     {
+        // Super admin tidak boleh terkunci oleh status langganan tenant mana pun.
+        $user = Filament::auth()->user();
+
+        if ($user instanceof \App\Models\User && $user->isSuperAdmin()) {
+            return $next($request);
+        }
+
         $team = Filament::getTenant();
 
         if (! $team) {

@@ -1,25 +1,40 @@
 {
-  "name": "BrandPilot AI - Autopilot Social Media",
-  "short_name": "BrandPilot AI",
-  "description": "Autopilot crossposting konten TikTok ke FB, IG, dan YouTube Shorts",
+  "id": "/admin/",
+  "name": "BrandPilot AI — Autopilot Social Media",
+  "short_name": "BrandPilot",
+  "description": "Autopilot crossposting konten TikTok ke Instagram Reels, Facebook, dan YouTube Shorts.",
   "start_url": "/admin",
   "scope": "/admin",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#0C0307",
   "theme_color": "#5B0E2D",
   "orientation": "portrait-primary",
+  "lang": "id",
   "icons": [
     {
-      "src": "https://img.icons8.com/fluency/192/compass--v1.png",
+      "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "https://img.icons8.com/fluency/512/compass--v1.png",
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }

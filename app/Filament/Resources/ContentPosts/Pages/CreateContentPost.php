@@ -17,6 +17,18 @@ class CreateContentPost extends CreateRecord
     protected function handleRecordCreation(array $data): Model
     {
         $team = Filament::getTenant();
+
+        if (app(\App\Services\GeminiService::class)->keys() === []) {
+            \Filament\Notifications\Notification::make()
+                ->title('Gemini API Key belum tersedia')
+                ->body('Tambahkan minimal satu Gemini API Key di menu API Keys (provider: Gemini). Key ini dipakai bersama semua workspace.')
+                ->danger()
+                ->persistent()
+                ->send();
+
+            $this->halt();
+        }
+
         $setting = $team->setting;
         $gemini = app(GeminiService::class);
 

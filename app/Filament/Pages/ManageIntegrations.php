@@ -19,9 +19,39 @@ class ManageIntegrations extends Page
 
     public array $integrations = [];
 
+    public bool $hasComposioKey = false;
+
     public function mount(ComposioService $composio): void
     {
         $team = Filament::getTenant();
+
+        // Composio key bersifat global (satu aplikasi, banyak entity tenant).
+        $this->hasComposioKey = \App\Models\ApiKey::query()
+            ->where('provider', 'composio')
+            ->where('is_active', true)
+            ->exists();
+
+        // Tanpa Composio API Key milik tenant, jangan panggil Composio sama sekali
+        // dan jangan tampilkan status "terhubung" dari sisa data lama.
+        if (! $this->hasComposioKey) {
+            $this->integrations = [];
+
+            foreach (['facebook', 'instagram', 'youtube'] as $platform) {
+                $this->integrations[$platform] = [
+                    'is_connected' => false,
+                    'account_name' => 'Belum Terhubung',
+                ];
+            }
+
+            Notification::make()
+                ->title('Composio API Key belum di-assign')
+                ->body("Workspace \"{$team->name}\" belum memiliki Composio API Key. Assign dulu di menu API Keys → Teams, lalu buka ulang halaman ini.")
+                ->danger()
+                ->persistent()
+                ->send();
+
+            return;
+        }
 
         // 1. Sinkronkan secara otomatis akun aktif dari Composio
         $composio->syncConnectedAccounts($team);
@@ -49,6 +79,17 @@ class ManageIntegrations extends Page
     public function connectPlatform(string $platform, ComposioService $composio)
     {
         $team = Filament::getTenant();
+
+        if (! \App\Models\ApiKey::query()->where('provider', 'composio')->where('is_active', true)->exists()) {
+            Notification::make()
+                ->title('Composio API Key belum tersedia')
+                ->body('Tambahkan Composio API Key di menu API Keys (provider: Composio) sebelum menghubungkan platform.')
+                ->danger()
+                ->persistent()
+                ->send();
+
+            return;
+        }
 
         try {
             // Ambil link OAuth Composio v3.1

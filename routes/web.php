@@ -8,6 +8,16 @@ Route::get('/', function () {
     return view('landing');
 });
 
+Route::get('/design-system', function () {
+    return view('design-system-showcase');
+})->name('design-system');
+
+// Syarat & Ketentuan (termasuk ketentuan antrean otomatis)
+Route::view('/syarat-ketentuan', 'legal.syarat-ketentuan')->name('tos');
+
+// Kebijakan Privasi
+Route::view('/kebijakan-privasi', 'legal.kebijakan-privasi')->name('privacy');
+
 use App\Http\Controllers\ComposioCallbackController;
 
 Route::get('/composio/callback/{team}/{platform}', [ComposioCallbackController::class, 'handle'])

@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\ContentPost;
+use App\Models\SocialIntegration;
 use App\Services\ComposioService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -19,8 +20,23 @@ class PublishContentJob implements ShouldQueue
 
     public function handle(ComposioService $composio): void
     {
+        // Kunci idempoten: hanya satu job yang boleh memproses post ini.
+        // Mencegah duplikasi saat poll TikTok dan scheduler memicu di detik yang sama.
+        $claimed = ContentPost::whereKey($this->post->id)
+            ->where('status', 'pending')
+            ->update(['status' => 'processing']);
+
+        if (! $claimed) {
+            Log::warning("Publish dilewati: ContentPost #{$this->post->id} sudah diproses job lain.");
+            return;
+        }
+
+        $this->post->refresh();
         $team = $this->post->team;
         $finalCaption = $this->post->ai_generated_caption ?: $this->post->original_caption;
+
+        // Segarkan status koneksi Composio dulu (akun EXPIRED tidak boleh dipakai)
+        $composio->syncConnectedAccounts($team);
 
         // Ambil akun-akun yang terhubung
         $integrations = $team->hasMany(\App\Models\SocialIntegration::class)
@@ -48,6 +64,12 @@ class PublishContentJob implements ShouldQueue
         $gallery    = (array) ($this->post->media_gallery ?? []);
 
         foreach ($integrations as $integration) {
+            // Jangan pernah memposting ulang platform yang sudah berhasil
+            if (! empty($platformPostIds[$integration->platform])) {
+                Log::info("Lewati {$integration->platform}: sudah terbit sebelumnya (" . $platformPostIds[$integration->platform] . ').');
+                continue;
+            }
+
             try {
                 $connId = $integration->composio_connection_id;
 
@@ -56,7 +78,51 @@ class PublishContentJob implements ShouldQueue
                 // ==========================================
                 if ($integration->platform === 'facebook') {
                     $pageId = $integration->metadata['page_id'] ?? null;
-                    if (! $pageId) { /* auto-fetch page_id */ }
+
+                    // Validasi: page_id wajib ada di daftar halaman koneksi ini.
+                    // Mencegah posting lintas tenant bila koneksi menunjuk page brand lain.
+                    $availablePages = $composio->facebookPages($team, $connId);
+                    $availableIds = array_column($availablePages, 'id');
+
+                    if ($pageId && ! in_array((string) $pageId, $availableIds, true)) {
+                        Log::error('Facebook: page_id ' . $pageId . ' tidak lagi dapat diakses koneksi ' . $connId . '. Publikasi dibatalkan agar tidak salah halaman.', [
+                            'available_pages' => $availablePages,
+                        ]);
+
+                        continue;
+                    }
+
+                    if (! $pageId) {
+                        // Pilih halaman pertama yang belum dipakai tenant lain (cegah lintas brand)
+                        $usedByOthers = SocialIntegration::where('platform', 'facebook')
+                            ->where('team_id', '!=', $team->id)
+                            ->get()
+                            ->map(fn ($i) => (string) ($i->metadata['page_id'] ?? ''))
+                            ->filter()
+                            ->all();
+
+                        foreach ($availablePages as $candidate) {
+                            if (! in_array($candidate['id'], $usedByOthers, true)) {
+                                $pageId = $candidate['id'];
+                                $meta = (array) ($integration->metadata ?? []);
+                                $meta['page_id'] = $pageId;
+                                $meta['page_name'] = $candidate['name'];
+                                $integration->update(['metadata' => $meta]);
+                                Log::info('Facebook: page_id ditetapkan otomatis ke ' . $pageId . ' (' . $candidate['name'] . ').');
+                                break;
+                            }
+                        }
+
+                        if (! $pageId) {
+                            Log::error('Facebook: semua halaman pada koneksi ' . $connId . ' sudah dipakai tenant lain. Hubungkan halaman khusus untuk tenant ini.');
+                            continue;
+                        }
+                    }
+
+                    if (! $pageId) {
+                        Log::error('Facebook: page_id tidak ditemukan untuk koneksi ' . $connId . '. Halaman FB belum diberikan izin MANAGE/CREATE_CONTENT.');
+                        continue;
+                    }
 
                     if ($isCarousel && count($gallery) > 1) {
                         // UNGGAH SEMUA FOTO SEBAGAI MULTI-PHOTO POST DI FACEBOOK
@@ -90,6 +156,7 @@ class PublishContentJob implements ShouldQueue
 
                     if ($res['success']) {
                         $platformPostIds['facebook'] = (string) ($res['data']['data']['id'] ?? ($res['data']['id'] ?? 'fb_success'));
+                        $publishedPlatforms['facebook'] = $platformPostIds['facebook'];
                         $this->post->update([
                             'status'            => 'published',
                             'published_at'      => now(),
@@ -124,6 +191,7 @@ class PublishContentJob implements ShouldQueue
 
                     if ($res['success']) {
                         $platformPostIds['instagram'] = (string) ($res['data']['data']['id'] ?? ($res['data']['id'] ?? 'ig_success'));
+                        $publishedPlatforms['instagram'] = $platformPostIds['instagram'];
                         $this->post->update([
                             'status'            => 'published',
                             'published_at'      => now(),
@@ -199,9 +267,18 @@ class PublishContentJob implements ShouldQueue
                 Log::error("Gagal publish ke {$integration->platform}: " . $e->getMessage());
             }
         }
-        // app/Jobs/PublishContentJob.php (di bagian akhir setelah update status published)
-        if (!empty($platformPostIds)) {
-            // Kirim Push Notification ke seluruh member/owner tenant ini
+        // Status akhir: 'published' hanya jika ada platform yang benar-benar terbit
+        if (! empty($publishedPlatforms)) {
+            $this->post->update(['status' => 'published', 'published_at' => now()]);
+        } elseif (empty($platformPostIds)) {
+            $this->post->update(['status' => 'failed']);
+        } else {
+            // Semua platform sudah terbit pada proses sebelumnya
+            $this->post->update(['status' => 'published']);
+        }
+
+        if (! empty($publishedPlatforms)) {
+            // Push hanya saat ada publikasi baru — jangan kirim "sukses" palsu
             foreach ($team->members as $member) {
                 $member->notify(new \App\Notifications\ContentPublishedPushNotification($this->post));
             }

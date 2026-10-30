@@ -2,8 +2,118 @@
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
+@source '../views/**/*.blade.php';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    /* Brand Fonts */
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-serif: 'Playfair Display', Georgia, serif;
+
+    /* Primary Burgundy / Deep Wine */
+    --color-burgundy-50: #fbf2f4;
+    --color-burgundy-100: #f6e4e8;
+    --color-burgundy-200: #eccdd4;
+    --color-burgundy-300: #dda6b4;
+    --color-burgundy-400: #ca768d;
+    --color-burgundy-500: #b24c68;
+    --color-burgundy-600: #963650;
+    --color-burgundy-700: #7c2a41;
+    --color-burgundy-800: #5b0e2d;
+    --color-burgundy-900: #420b22;
+    --color-burgundy-950: #2b0414;
+
+    /* Secondary Rose Gold / Antique Copper */
+    --color-rosegold-50: #faf6f3;
+    --color-rosegold-100: #f4ece5;
+    --color-rosegold-200: #e7d6c8;
+    --color-rosegold-300: #d5b9a4;
+    --color-rosegold-400: #c0987e;
+    --color-rosegold-500: #b76e79;
+    --color-rosegold-600: #a06e54;
+    --color-rosegold-700: #855844;
+    --color-rosegold-800: #6d4839;
+    --color-rosegold-900: #593c31;
+    --color-rosegold-950: #301e18;
+
+    /* Metallic Gold Accent */
+    --color-gold-500: #d4af37;
+    --color-gold-600: #aa820a;
+
+    /* Custom Radius */
+    --radius-xl: 1rem;
+    --radius-2xl: 1.25rem;
+    --radius-3xl: 1.5rem;
+}
+
+/* ==========================================================================
+   CSS VARIABLES FOR LIGHT & DARK (OBSIDIAN WINE)
+   ========================================================================== */
+:root:not(.dark) {
+    --bp-canvas: #fcfcfc;
+    --bp-card-bg: rgba(255, 255, 255, 0.90);
+    --bp-card-border: rgba(183, 110, 121, 0.18);
+    --bp-card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.04);
+}
+
+.dark {
+    --bp-canvas: #0c0307;
+    --bp-card-bg: rgba(22, 8, 15, 0.72);
+    --bp-card-border: rgba(183, 110, 121, 0.28);
+    --bp-card-shadow: 0 12px 30px -5px rgba(0, 0, 0, 0.35);
+}
+
+/* ==========================================================================
+   REUSABLE BRANDPILOT UTILITIES
+   ========================================================================== */
+.gradient-text {
+    background: linear-gradient(135deg, #5b0e2d 0%, #b76e79 50%, #d4af37 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.btn-burgundy {
+    background: linear-gradient(135deg, #5b0e2d 0%, #7c2a41 100%);
+    box-shadow: 0 10px 25px -5px rgba(91, 14, 45, 0.35);
+    border: 1px solid rgba(192, 152, 126, 0.4);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-burgundy:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 30px -5px rgba(91, 14, 45, 0.5);
+    filter: brightness(1.05);
+}
+
+.btn-rosegold {
+    background: linear-gradient(135deg, #b76e79 0%, #c0987e 100%);
+    box-shadow: 0 10px 25px -5px rgba(183, 110, 121, 0.3);
+    color: #ffffff;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-rosegold:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 30px -5px rgba(183, 110, 121, 0.45);
+}
+
+.card-brandpilot {
+    background: var(--bp-card-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--bp-card-border);
+    border-radius: 1rem;
+    box-shadow: var(--bp-card-shadow);
+}
+
+.ambient-glow {
+    position: absolute;
+    top: 25%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 700px;
+    height: 350px;
+    background: radial-gradient(circle, rgba(91, 14, 45, 0.12) 0%, rgba(183, 110, 121, 0.15) 50%, transparent 70%);
+    filter: blur(80px);
+    pointer-events: none;
+    z-index: 0;
 }

@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BrandPilot AI — Autopilot Sindikasi Konten TikTok ke Semua Sosmed</title>
     <meta name="description" content="Fokus bikin konten di TikTok. Biarkan BrandPilot AI yang merepost otomatis ke Instagram Reels, Facebook, dan YouTube Shorts dengan caption cerdas AI.">
+    <meta name="theme-color" content="#5B0E2D">
+    <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('icons/apple-touch-icon.png') }}">
+    <link rel="manifest" href="{{ asset('site.webmanifest') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
@@ -53,8 +59,33 @@
             box-shadow: 0 15px 30px -5px rgba(91, 14, 45, 0.5);
         }
     </style>
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-WT4Z3NN5');</script>
+<!-- End Google Tag Manager -->
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-WT4Z3NN5');</script>
+<!-- End Google Tag Manager -->
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-WT4Z3NN5');</script>
+    <!-- End Google Tag Manager -->
 </head>
 <body class="bg-[#FCFCFC] text-slate-800 font-sans antialiased selection:bg-rosegold-300 selection:text-burgundy-950">
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-WT4Z3NN5"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
 
     {{-- NAVBAR --}}
     <nav class="sticky top-0 z-50 backdrop-blur-md bg-white/80 border-b border-slate-100">
@@ -128,63 +159,16 @@
                 <span>✓ Mulai Rp 1.000-an / hari</span>
             </p>
 
-            {{-- HERO IMAGE DUMMY / MOCKUP CONTAINER --}}
-            <div class="mt-16 relative max-w-5xl mx-auto">
-                <div class="relative rounded-3xl p-3 bg-gradient-to-b from-slate-200 via-slate-100 to-white shadow-2xl shadow-burgundy-950/10 border border-slate-200">
-                    <div class="relative overflow-hidden rounded-2xl bg-white aspect-[16/9] border border-slate-100 flex flex-col items-center justify-center text-center p-8 group">
-                        
-                        {{-- Visual Diagram Dummy Mockup --}}
-                        <div class="w-full max-w-3xl flex flex-col md:flex-row items-center justify-between gap-6 py-6">
-                            {{-- Sumber TikTok --}}
-                            <div class="flex flex-col items-center p-6 bg-slate-50 rounded-2xl border-2 border-slate-900 shadow-sm w-full md:w-60">
-                                <span class="text-4xl mb-2">🎵</span>
-                                <h4 class="font-extrabold text-slate-900">1x Post di TikTok</h4>
-                                <p class="text-xs text-slate-500 mt-1">Video atau Carousel Foto</p>
-                                <span class="mt-3 px-3 py-1 bg-black text-white text-[10px] font-bold rounded-full">Satu-satunya Pekerjaan Anda</span>
-                            </div>
-
-                            {{-- Mesin AI Tengah --}}
-                            <div class="flex flex-col items-center text-center">
-                                <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-burgundy-800 to-rosegold-500 text-white flex items-center justify-center text-xl font-bold shadow-lg shadow-burgundy-800/30 animate-pulse">
-                                    AI
-                                </div>
-                                <span class="text-xs font-bold text-burgundy-900 mt-2">BrandPilot Copilot</span>
-                                <span class="text-[10px] text-slate-600 max-w-[140px]">Gemini nonton video & bikin caption viral</span>
-                            </div>
-
-                            {{-- Hasil Sindikasi 3 Platform --}}
-                            <div class="flex flex-col gap-3 w-full md:w-60">
-                                <div class="flex items-center gap-3 p-3 bg-rose-50 border border-rose-200 rounded-xl">
-                                    <span class="text-xl">📸</span>
-                                    <div class="text-left">
-                                        <p class="text-xs font-bold text-slate-900">Instagram Reels / Carousel</p>
-                                        <p class="text-[10px] text-emerald-600 font-bold">● Auto Published</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
-                                    <span class="text-xl">📘</span>
-                                    <div class="text-left">
-                                        <p class="text-xs font-bold text-slate-900">Facebook Page Video/Album</p>
-                                        <p class="text-[10px] text-emerald-600 font-bold">● Auto Published</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl">
-                                    <span class="text-xl">▶️</span>
-                                    <div class="text-left">
-                                        <p class="text-xs font-bold text-slate-900">YouTube Shorts</p>
-                                        <p class="text-[10px] text-emerald-600 font-bold">● Auto Published</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {{-- Panduan Pengisian Gambar Asli Nanti --}}
-                        <div class="mt-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 max-w-xl">
-                            📌 <b>PANDUAN MOCKUP GAMBAR:</b> Nanti ganti area ini dengan gambar tangkapan layar <i>(screenshot)</i> laptop yang menampilkan Dashboard BrandPilot AI di tengah, lalu ada ilustrasi panah animasi dari logo TikTok menuju ke logo Instagram Reels, Facebook, dan YouTube Shorts.
-                        </div>
-                    </div>
-                </div>
-            </div>
+           {{-- HERO IMAGE / SCREENSHOT RESMI BRANDPILOT --}}
+                       <div class="mt-16 relative max-w-5xl mx-auto">
+                           {{-- Bingkai Luar Bergradasi Mewah --}}
+                           <div class="relative rounded-3xl p-2 md:p-3 bg-gradient-to-b from-slate-200 via-slate-100 to-white shadow-2xl shadow-burgundy-950/15 border border-slate-200">
+                               {{-- Gambar Screenshot Anda --}}
+                               <img src="{{ asset('landing.jpg') }}"
+                                    alt="BrandPilot AI Dashboard Preview"
+                                    class="w-full h-auto rounded-2xl shadow-lg border border-slate-100 object-cover">
+                           </div>
+                       </div>
         </div>
     </section>
 
@@ -509,18 +493,27 @@
     <footer class="bg-white border-t border-slate-200 py-12">
         <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
             <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-lg bg-burgundy-800 text-white font-bold flex items-center justify-center text-sm">
-                    B
-                </div>
+                <img src="{{ asset('icons/icon-192.png') }}" alt="BrandPilot AI" class="w-8 h-8 rounded-lg shadow-sm">
                 <span class="text-lg font-bold text-burgundy-950">BrandPilot AI</span>
             </div>
 
-            <p class="text-xs text-slate-600 text-center md:text-right">
-                &copy; {{ date('Y') }} BrandPilot AI. Semua Hak Cipta Dilindungi.<br/>
-                Fokus bikin konten di TikTok, biarkan kami yang mengurus sisanya.
-            </p>
+            <div class="flex flex-col items-center md:items-end gap-2">
+                <div class="flex items-center gap-4 text-xs font-semibold text-slate-600">
+                    <a href="{{ url('/kebijakan-privasi') }}" class="hover:text-burgundy-800 transition">Kebijakan Privasi</a>
+                    <span class="text-slate-300">•</span>
+                    <a href="{{ url('/syarat-ketentuan') }}" class="hover:text-burgundy-800 transition">Syarat &amp; Ketentuan</a>
+                </div>
+                <p class="text-xs text-slate-600 text-center md:text-right">
+                    &copy; {{ date('Y') }} BrandPilot AI. Semua Hak Cipta Dilindungi.<br/>
+                    Fokus bikin konten di TikTok, biarkan kami yang mengurus sisanya.
+                </p>
+            </div>
         </div>
     </footer>
 
-</body>
+<body>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-WT4Z3NN5"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
 </html>

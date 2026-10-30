@@ -29,7 +29,9 @@ class TestPaymentWebhook extends Command
         $url = url('/api/webhooks/composio/gmail-payment');
         $this->line("Menembak ke Webhook: {$url}");
 
-        $response = Http::post($url, [
+        $response = Http::withHeaders([
+            'X-Webhook-Token' => (string) config('services.composio.webhook_secret'),
+        ])->post($url, [
             'from'    => 'no-reply@lynk.id',
             'subject' => 'Pembayaran Berhasil via Lynk.id',
             'snippet' => $fakeEmailBody,

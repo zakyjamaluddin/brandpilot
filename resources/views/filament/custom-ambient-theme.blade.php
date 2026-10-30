@@ -1,3 +1,6 @@
+<link rel="apple-touch-icon" sizes="180x180" href="{{ asset('icons/apple-touch-icon.png') }}">
+<link rel="manifest" href="{{ asset('manifest.json') }}">
+<meta name="theme-color" content="#5B0E2D">
 <style>
     /* ==========================================================================
        BRANDPILOT AI: LUXURY AMBIENT GLOW THEME (LIGHT & DARK MODE)
@@ -48,6 +51,15 @@
         transition: background 0.5s ease-in-out;
     }
 
+    /* Modal harus di atas sidebar & topbar.
+       .fi-main sengaja diberi z-index:1 (membentuk stacking context), sehingga
+       modal yang dirender di dalamnya bisa tertindih sidebar/topbar.
+       JANGAN menaikkan .fi-modal-close-overlay: overlay default z-40, window z-50;
+       kalau overlay dinaikkan melewati window, isi modal tertutup lapisan hitam. */
+    .fi-modal {
+        z-index: 9999 !important;
+    }
+
     .fi-layout, .fi-main {
         position: relative;
         z-index: 1;
@@ -66,6 +78,17 @@
     .fi-sidebar {
         margin: 0 !important;
         border-radius: 0 !important;
+    }
+
+    /* iOS Safari (WebKit) mengecilkan flex-child tanpa min-height:0, sehingga
+       footer tombol PWA bisa terdorong keluar layar / mengecil jadi 0.
+       Kunci tinggi nav agar scroll di dalam nav, footer tetap terlihat. */
+    .fi-sidebar-nav {
+        min-height: 0 !important;
+    }
+
+    .fi-sidebar-footer {
+        flex: 0 0 auto !important;
     }
 
     /* Topbar di Light Theme */

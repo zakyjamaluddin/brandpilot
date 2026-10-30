@@ -19,9 +19,94 @@ class GeminiService
         'gemini-1.5-flash-latest',
     ];
 
+    /**
+     * Daftar API key Gemini yang dipakai BERSAMA oleh semua tenant (bukan assign per tenant).
+     * Sumber: menu API Keys (provider = gemini, aktif) → fallback config/env.
+     */
+    public function keys(): array
+    {
+        $keys = \App\Models\ApiKey::query()
+            ->where('provider', 'gemini')
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->pluck('api_key')
+            ->map(fn ($k) => trim((string) $k))
+            ->filter()
+            ->values()
+            ->all();
+
+        if ($keys === []) {
+            $env = trim((string) config('services.gemini.api_key', ''));
+            if ($env !== '') {
+                $keys = [$env];
+            }
+        }
+
+        return $keys;
+    }
+
     public function getApiKey(?Team $team = null): string
     {
-        return $team?->geminiKey?->api_key ?: config('services.gemini.key', '');
+        $keys = $this->keys();
+
+        if ($keys === []) {
+            throw new \RuntimeException('Gemini API Key belum tersedia. Tambahkan di menu API Keys (provider: Gemini).');
+        }
+
+        return $keys[0];
+    }
+
+    protected function keyIsDead(string $key): bool
+    {
+        return \Illuminate\Support\Facades\Cache::has('gemini:dead:' . md5($key));
+    }
+
+    protected function markKeyDead(string $key, int $minutes = 30): void
+    {
+        \Illuminate\Support\Facades\Cache::put('gemini:dead:' . md5($key), true, now()->addMinutes($minutes));
+    }
+
+    /**
+     * Kirim generateContent dengan fallback antar-key:
+     * 401/403 → key ditandai mati 30 menit; 429 → dilewati 10 menit; 5xx → coba key berikutnya.
+     */
+    protected function postGenerate(array $payload, int $timeout = 120): \Illuminate\Http\Client\Response
+    {
+        $keys = $this->keys();
+
+        if ($keys === []) {
+            throw new \RuntimeException('Gemini API Key belum tersedia. Tambahkan di menu API Keys (provider: Gemini).');
+        }
+
+        $lastResponse = null;
+
+        foreach ($keys as $key) {
+            if ($this->keyIsDead($key)) {
+                continue;
+            }
+
+            $endpoint = 'https://generativelanguage.googleapis.com/v1/models/gemini-3.1-flash-lite:generateContent?key=' . $key;
+            $response = Http::timeout($timeout)->post($endpoint, $payload);
+            $lastResponse = $response;
+
+            if ($response->successful()) {
+                return $response;
+            }
+
+            $status = $response->status();
+
+            if (in_array($status, [401, 403])) {
+                $this->markKeyDead($key, 30);
+                Log::warning("Gemini: key ditandai mati (HTTP {$status}).");
+            } elseif ($status === 429) {
+                $this->markKeyDead($key, 10);
+                Log::warning('Gemini: key kena limit 429, coba key berikutnya.');
+            } else {
+                Log::warning("Gemini: HTTP {$status} pada salah satu key, coba key berikutnya.");
+            }
+        }
+
+        return $lastResponse ?? Http::response(['error' => ['message' => 'Semua Gemini API key tidak tersedia.']], 503);
     }
 
     // app/Services/GeminiService.php
@@ -181,10 +266,8 @@ class GeminiService
 
             Log::info("Gemini Files API: Selesai upload. Mengirim prompt pemisahan Judul & Deskripsi...");
 
-            $endpoint = "https://generativelanguage.googleapis.com/v1/models/gemini-3.1-flash-lite:generateContent?key={$apiKey}";
-
-            // 3. Request ke Gemini dengan konfigurasi JSON output
-            $response = Http::timeout(120)->retry(3, 5000)->post($endpoint, [
+            // 3. Request ke Gemini dengan konfigurasi JSON output (otomatis fallback antar-key)
+            $response = $this->postGenerate([
                 'contents' => [
                     [
                         'parts' => [
@@ -267,12 +350,10 @@ class GeminiService
             "- Keluarkan HANYA teks balasan siap kirim tanpa tanda petik pembuka/penutup atau teks pengantar 'Balasan:'.";
 
         // Gunakan endpoint v1 dan model gemini-3.1-flash-lite yang sudah terbukti bekerja
-        $endpoint = "https://generativelanguage.googleapis.com/v1/models/gemini-3.1-flash-lite:generateContent?key={$apiKey}";
-
         try {
             Log::info("Gemini Smart Reply: Mengirim pesan ke AI Gemini...", ['pesan' => $incomingMessage]);
 
-            $response = Http::timeout(30)->retry(2, 2000)->post($endpoint, [
+            $response = $this->postGenerate([
                 'contents' => [
                     [
                         'parts' => [
@@ -280,7 +361,7 @@ class GeminiService
                         ]
                     ]
                 ]
-            ]);
+            ], 30);
 
             Log::info("Gemini Smart Reply HTTP Status: " . $response->status());
 
@@ -362,9 +443,7 @@ class GeminiService
 
             Log::info("Gemini AI: Mengirim " . (count($imageParts) - 1) . " slide foto carousel ke Gemini Flash Lite...");
 
-            $endpoint = "https://generativelanguage.googleapis.com/v1/models/gemini-3.1-flash-lite:generateContent?key={$apiKey}";
-
-            $response = Http::timeout(90)->retry(2, 3000)->post($endpoint, [
+            $response = $this->postGenerate([
                 'contents' => [
                     [
                         'parts' => $imageParts,
@@ -373,7 +452,7 @@ class GeminiService
                 'generationConfig' => [
                     'response_mime_type' => 'application/json',
                 ],
-            ]);
+            ], 90);
 
             if ($response->successful()) {
                 $rawJsonText = trim($response->json()['candidates'][0]['content']['parts'][0]['text'] ?? '');

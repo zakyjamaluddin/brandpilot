@@ -8,7 +8,6 @@ use App\Models\Team;
 use App\Services\ApifyService;
 use App\Services\GeminiService;
 use App\Services\ZakyTikTokDownloaderService;
-use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -43,7 +42,14 @@ class PollTikTokPosts extends Command
             $this->info("Memeriksa akun TikTok untuk Tenant: {$team->name}");
 
             // 2. Ambil video/carousel terbaru (melewati pinned post) via Apify
-            $latestVideo = $apify->getLatestNonPinnedVideo($team->tiktok_profile_url, $team);
+            try {
+                $latestVideo = $apify->getLatestNonPinnedVideo($team->tiktok_profile_url, $team);
+            } catch (\Throwable $e) {
+                // Tenant tanpa Apify API Key tidak boleh menggagalkan antrean tenant lain.
+                $this->warn("Lewati {$team->name}: " . $e->getMessage());
+
+                continue;
+            }
 
             if (! $latestVideo || empty($latestVideo['post_id'])) {
                 $this->warn("Tidak ada postingan baru yang ditemukan atau gagal scrape untuk {$team->name}");
@@ -98,19 +104,8 @@ class PollTikTokPosts extends Command
                     ? $mediaResult['public_download_url'] 
                     : ($mediaResult['public_url'] ?? '');
 
-                // 6. Tentukan Jadwal Tayang (Dynamic Delay vs Jam Statis)
+                // 6. Mode distribusi: hanya antrean otomatis (diproses pada siklus polling berikutnya)
                 $scheduledAt = now();
-                if ($setting && $setting->schedule_mode === 'static_fixed' && !empty($setting->static_posting_hours)) {
-                    $hours = $setting->static_posting_hours;
-                    $nextSlot = Carbon::today()->setTimeFromTimeString($hours[0]);
-                    
-                    if ($nextSlot->isPast()) {
-                        $nextSlot = (count($hours) > 1 && Carbon::today()->setTimeFromTimeString($hours[1])->isFuture())
-                            ? Carbon::today()->setTimeFromTimeString($hours[1])
-                            : Carbon::tomorrow()->setTimeFromTimeString($hours[0]);
-                    }
-                    $scheduledAt = $nextSlot;
-                }
 
                 // 7. Simpan Record ContentPost
                 $post = ContentPost::create([

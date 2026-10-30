@@ -15,6 +15,15 @@ class DispatchScheduledPosts extends Command
     {
         $this->info('Memeriksa antrean postingan yang siap dipublikasikan...');
 
+        // Pulihkan post yang tertahan di 'processing' (mis. worker mati di tengah jalan)
+        $stuck = ContentPost::where('status', 'processing')
+            ->where('updated_at', '<', now()->subMinutes(20))
+            ->update(['status' => 'pending']);
+
+        if ($stuck > 0) {
+            $this->warn("{$stuck} postingan macet dikembalikan ke antrean.");
+        }
+
         // Cari semua postingan pending yang jadwalnya sudah lewat atau tepat saat ini
         $duePosts = ContentPost::where('status', 'pending')
             ->where(function ($query) {
@@ -33,10 +42,8 @@ class DispatchScheduledPosts extends Command
         foreach ($duePosts as $post) {
             $this->info("Memproses Post ID #{$post->id} untuk Tenant: {$post->team->name}...");
 
-            // Ubah status ke processing agar tidak dieksekusi dobel
-            $post->update(['status' => 'processing']);
-
-            // Jalankan secara sinkron (sync) agar proses & log-nya langsung muncul di terminal
+            // Status 'processing' diklaim di dalam job (atomic), supaya tidak ada
+            // dua jalur yang sama-sama mengubah status lalu memposting dua kali.
             try {
                 dispatch_sync(new PublishContentJob($post));
                 $this->info("✓ Post ID #{$post->id} selesai diproses.");

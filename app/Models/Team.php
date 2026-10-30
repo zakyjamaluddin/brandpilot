@@ -24,6 +24,7 @@ class Team extends Model
         'composio_api_key_id',
         'gemini_api_key_id',
         'apify_api_key_id',
+        'apify_token',
         'subscription_status',
         'subscription_expires_at',
         'customer_email',
@@ -47,7 +48,21 @@ class Team extends Model
 
     protected $casts = [
         'subscription_expires_at' => 'datetime',
+        'apify_token' => 'encrypted',
     ];
+
+    /**
+     * Token Apify efektif: token milik tenant di Setting, atau key lama yang di-assign admin.
+     */
+    public function apifyToken(): string
+    {
+        return trim((string) ($this->apify_token ?: $this->apifyKey?->api_key));
+    }
+
+    public function hasApifyToken(): bool
+    {
+        return $this->apifyToken() !== '';
+    }
 
     // Relasi ke User
     public function members(): BelongsToMany
@@ -66,4 +81,18 @@ class Team extends Model
     {
         return $this->hasMany(ContentPost::class);
     }
+
+    /** @return HasMany<\App\Models\Role, self> */
+    public function roles(): HasMany
+    {
+        return $this->hasMany(\App\Models\Role::class);
+    }
+
+
+    /** @return HasMany<\App\Models\InboxThread, self> */
+    public function inboxThreads(): HasMany
+    {
+        return $this->hasMany(\App\Models\InboxThread::class);
+    }
+
 }

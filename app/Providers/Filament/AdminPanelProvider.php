@@ -35,7 +35,8 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->login()
+            ->favicon(asset('icons/icon-192.png'))
+            ->login(\App\Filament\Pages\Auth\Login::class)
 
             // 1. Multi-Tenancy
             ->tenant(Team::class, slugAttribute: 'slug')

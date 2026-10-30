@@ -22,9 +22,11 @@ class TeamsTable
                     ->dateTime('d M Y, H:i')
                     ->sortable(),
 
-                TextColumn::make('composioKey.label')->label('Composio Key')->placeholder('Belum Diatur'),
-                TextColumn::make('geminiKey.label')->label('Gemini Key')->placeholder('Belum Diatur'),
-                TextColumn::make('apifyKey.label')->label('Apify Key')->placeholder('Belum Diatur'),
+                TextColumn::make('apify_token')
+                    ->label('Apify Token')
+                    ->formatStateUsing(fn ($state) => filled($state) ? 'Terisi' : 'Belum')
+                    ->badge()
+                    ->color(fn ($state) => filled($state) ? 'success' : 'danger'),
 
                 BadgeColumn::make('subscription_status')
                     ->label('Status')

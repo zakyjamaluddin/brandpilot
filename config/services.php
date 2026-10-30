@@ -38,6 +38,7 @@ return [
     'composio' => [
         'key' => env('COMPOSIO_API_KEY'),
         'base_url' => 'https://backend.composio.dev/api/v3',
+        'webhook_secret' => env('COMPOSIO_WEBHOOK_SECRET'),
     ],
     'gemini' => [
         'key' => env('GEMINI_API_KEY'),
@@ -45,6 +46,12 @@ return [
     'apify' => [
         'token' => env('APIFY_API_KEY'),
         'actor' => 'clockworks~tiktok-scraper',
+    ],
+
+    'webpush' => [
+        'public_key' => env('VAPID_PUBLIC_KEY'),
+        'private_key' => env('VAPID_PRIVATE_KEY'),
+        'subject' => env('VAPID_SUBJECT', 'mailto:'.env('MAIL_FROM_ADDRESS', 'info@brandpilot.my.id')),
     ],
 
 ];

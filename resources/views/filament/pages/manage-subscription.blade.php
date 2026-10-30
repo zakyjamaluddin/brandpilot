@@ -85,17 +85,17 @@
             '1': {
                 name: 'Subscription 1 Bulan',
                 price: 'Rp 39.000',
-                url: 'https://lynk.id/zakyjamal/731woweop93d/'
+                url: 'https://lynk.id/zakyjamal/731woweop93d/checkout'
             },
             '6': {
                 name: 'Subscription 6 Bulan',
                 price: 'Rp 189.000',
-                url: 'http://lynk.id/zakyjamal/xj9nkn994yeo/'
+                url: 'https://lynk.id/zakyjamal/xj9nkn994yeo/checkout'
             },
             '12': {
                 name: 'Subscription 12 Bulan (1 Tahun)',
                 price: 'Rp 297.000',
-                url: 'http://lynk.id/zakyjamal/jokgvgpvlq9x/'
+                url: 'https://lynk.id/zakyjamal/jokgvgpvlq9x/checkout'
             }
         }
     }">
