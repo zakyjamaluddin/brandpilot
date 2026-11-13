@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\User;
 use Closure;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
@@ -15,7 +16,7 @@ class EnsureTenantHasActiveSubscription
         // Super admin tidak boleh terkunci oleh status langganan tenant mana pun.
         $user = Filament::auth()->user();
 
-        if ($user instanceof \App\Models\User && $user->isSuperAdmin()) {
+        if ($user instanceof User && $user->isSuperAdmin()) {
             return $next($request);
         }
 

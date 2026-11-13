@@ -28,7 +28,7 @@ return [
          * `Spatie\Permission\Contracts\Role` contract.
          */
 
-        'role' => \App\Models\Role::class,
+        'role' => App\Models\Role::class,
 
         /*
          * When using the "Teams" feature from this package, we need to know which
@@ -36,7 +36,6 @@ return [
          * is often just the "Team" model but you may use whatever you like.
          */
         'team' => null,
-
 
         /*
          * When using the "HasModels" trait and passing raw IDs to syncModels,

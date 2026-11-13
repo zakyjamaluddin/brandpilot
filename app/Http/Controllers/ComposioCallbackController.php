@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Team;
 use App\Models\SocialIntegration;
-use Illuminate\Http\Request;
+use App\Models\Team;
 use App\Services\ComposioService;
+use Illuminate\Http\Request;
 
 class ComposioCallbackController extends Controller
 {
@@ -19,13 +19,13 @@ class ComposioCallbackController extends Controller
         if ($connectedAccountId) {
             SocialIntegration::updateOrCreate(
                 [
-                    'team_id'  => $team->id,
+                    'team_id' => $team->id,
                     'platform' => $platform,
                 ],
                 [
                     'composio_connection_id' => $connectedAccountId,
-                    'account_name'           => ucfirst($platform) . ' Connected',
-                    'is_connected'           => true,
+                    'account_name' => ucfirst($platform).' Connected',
+                    'is_connected' => true,
                 ]
             );
         }
@@ -33,7 +33,7 @@ class ComposioCallbackController extends Controller
         // 2. Lakukan sinkronisasi resmi ke API Composio untuk konfirmasi status aktif
         $composio->syncConnectedAccounts($team);
 
-        return redirect('/admin/' . $team->slug . '/manage-integrations')
-            ->with('notify', ucfirst($platform) . ' berhasil terhubung!');
+        return redirect('/admin/'.$team->slug.'/manage-integrations')
+            ->with('notify', ucfirst($platform).' berhasil terhubung!');
     }
 }

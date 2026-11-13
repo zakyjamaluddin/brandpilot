@@ -19,6 +19,7 @@ class ApiKeyResource extends Resource
     protected static ?string $model = ApiKey::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedKey;
+
     protected static bool $isScopedToTenant = false;
 
     public static function form(Schema $schema): Schema

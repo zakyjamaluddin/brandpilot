@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Models\ApiKey;
 use App\Models\SocialIntegration;
 use App\Services\ComposioService;
 use BackedEnum;
@@ -13,9 +14,12 @@ use Illuminate\Support\Facades\Log;
 class ManageIntegrations extends Page
 {
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-arrow-path-rounded-square';
+
     protected static ?string $navigationLabel = 'Integrations';
+
     protected static ?string $title = 'Social Media Integrations';
-    protected  string $view = 'filament.pages.manage-integrations';
+
+    protected string $view = 'filament.pages.manage-integrations';
 
     public array $integrations = [];
 
@@ -26,7 +30,7 @@ class ManageIntegrations extends Page
         $team = Filament::getTenant();
 
         // Composio key bersifat global (satu aplikasi, banyak entity tenant).
-        $this->hasComposioKey = \App\Models\ApiKey::query()
+        $this->hasComposioKey = ApiKey::query()
             ->where('provider', 'composio')
             ->where('is_active', true)
             ->exists();
@@ -80,7 +84,7 @@ class ManageIntegrations extends Page
     {
         $team = Filament::getTenant();
 
-        if (! \App\Models\ApiKey::query()->where('provider', 'composio')->where('is_active', true)->exists()) {
+        if (! ApiKey::query()->where('provider', 'composio')->where('is_active', true)->exists()) {
             Notification::make()
                 ->title('Composio API Key belum tersedia')
                 ->body('Tambahkan Composio API Key di menu API Keys (provider: Composio) sebelum menghubungkan platform.')
@@ -99,10 +103,10 @@ class ManageIntegrations extends Page
             return $this->js("window.location.href = '{$oauthUrl}';");
 
         } catch (\Throwable $e) {
-            Log::error("Gagal Connect Platform [{$platform}]: " . $e->getMessage());
+            Log::error("Gagal Connect Platform [{$platform}]: ".$e->getMessage());
 
             Notification::make()
-                ->title("Gagal Menghubungkan " . ucfirst($platform))
+                ->title('Gagal Menghubungkan '.ucfirst($platform))
                 ->body($e->getMessage())
                 ->danger()
                 ->persistent()

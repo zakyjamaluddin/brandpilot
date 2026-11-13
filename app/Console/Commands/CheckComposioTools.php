@@ -5,10 +5,12 @@ namespace App\Console\Commands;
 use App\Models\Team;
 use App\Services\ComposioService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 
 class CheckComposioTools extends Command
 {
     protected $signature = 'brandpilot:check-tools {toolkit=facebook} {--keyword=}';
+
     protected $description = 'Lihat daftar tool resmi Composio beserta parameter wajibnya';
 
     public function handle(ComposioService $composio)
@@ -19,6 +21,7 @@ class CheckComposioTools extends Command
         $team = Team::first();
         if (! $team) {
             $this->error('Belum ada tenant/team di database.');
+
             return;
         }
 
@@ -29,7 +32,8 @@ class CheckComposioTools extends Command
         $res = $client->get('/tools', ['toolkit_slug' => $toolkit]);
 
         if (! $res->successful()) {
-            $this->error("Gagal mengambil tools: " . $res->body());
+            $this->error('Gagal mengambil tools: '.$res->body());
+
             return;
         }
 
@@ -42,14 +46,14 @@ class CheckComposioTools extends Command
             $params = array_keys($tool['parameters']['properties'] ?? []);
             $required = $tool['parameters']['required'] ?? [];
 
-            if ($keyword && !str_contains(strtolower($name), $keyword) && !str_contains(strtolower($desc), $keyword)) {
+            if ($keyword && ! str_contains(strtolower($name), $keyword) && ! str_contains(strtolower($desc), $keyword)) {
                 continue;
             }
 
             $rows[] = [
                 $name,
                 implode(', ', $required) ?: '-',
-                \Illuminate\Support\Str::limit($desc, 60),
+                Str::limit($desc, 60),
             ];
         }
 

@@ -15,15 +15,17 @@ use Illuminate\Console\Command;
 class TestPoolComments extends Command
 {
     protected $signature = 'brandpilot:test-pool-comments {--reply : Sekaligus kirim balasan otomatis ke sosmed}';
+
     protected $description = 'Wajib mengambil postingan terakhir, deteksi komentar sendiri via User ID, anti-double reply, dan kirim balasan';
 
     public function handle(ComposioService $composio, GeminiService $gemini)
     {
-        $this->info("=== UJI COBA POOLING KOMENTAR SOSIAL MEDIA ===");
+        $this->info('=== UJI COBA POOLING KOMENTAR SOSIAL MEDIA ===');
 
         $team = Team::first();
         if (! $team) {
-            $this->error("X Belum ada Tenant/Team di database!");
+            $this->error('X Belum ada Tenant/Team di database!');
+
             return;
         }
 
@@ -31,14 +33,15 @@ class TestPoolComments extends Command
         $post = ContentPost::where('team_id', $team->id)->latest()->first();
 
         if (! $post) {
-            $this->error("X Belum ada satupun ContentPost di database.");
+            $this->error('X Belum ada satupun ContentPost di database.');
+
             return;
         }
 
         $this->info("1. Memeriksa Postingan Terakhir (Post ID #{$post->id})");
         $this->line("   Judul: \"{$post->title}\"");
         $this->line("   Status Saat Ini: <fg=yellow>{$post->status}</>");
-        $this->line("   ID Sosmed: " . json_encode($post->platform_post_ids));
+        $this->line('   ID Sosmed: '.json_encode($post->platform_post_ids));
 
         $platformIds = (array) ($post->platform_post_ids ?? []);
 
@@ -53,13 +56,15 @@ class TestPoolComments extends Command
                     dispatch_sync(new PublishContentJob($post));
                     $post->refresh();
                     $platformIds = (array) ($post->platform_post_ids ?? []);
-                    $this->info("✓ Publikasi selesai! ID Baru: " . json_encode($platformIds));
+                    $this->info('✓ Publikasi selesai! ID Baru: '.json_encode($platformIds));
                 } catch (\Throwable $e) {
-                    $this->error("Gagal publish: " . $e->getMessage());
+                    $this->error('Gagal publish: '.$e->getMessage());
+
                     return;
                 }
             } else {
-                $this->line("Dibatalkan.");
+                $this->line('Dibatalkan.');
+
                 return;
             }
         }
@@ -72,10 +77,11 @@ class TestPoolComments extends Command
             $objectId = $platformIds[$platform] ?? null;
 
             $this->info("\n--------------------------------------------------");
-            $this->info("2. Platform: " . strtoupper($platform));
+            $this->info('2. Platform: '.strtoupper($platform));
 
             if (! $objectId) {
                 $this->warn("   Postingan #{$post->id} tidak memiliki ID untuk platform {$platform}. Melewati.");
+
                 continue;
             }
 
@@ -85,7 +91,7 @@ class TestPoolComments extends Command
             $comments = [];
 
             // Identifikasi ID Akun Milik Kita Sendiri (Anti-Self by ID)
-            $myPageId   = (string) ($integration->metadata['page_id'] ?? '422099137659003');
+            $myPageId = (string) ($integration->metadata['page_id'] ?? '422099137659003');
             $myIgUserId = (string) ($integration->metadata['ig_user_id'] ?? '38448916064752527');
             $myIgUsername = strtolower($integration->metadata['username'] ?? ($integration->account_name ?? 'kenbifarm'));
 
@@ -93,7 +99,7 @@ class TestPoolComments extends Command
             // A. TARIK KOMENTAR FACEBOOK
             // ==========================================
             if ($platform === 'facebook') {
-                $this->line("   Memanggil tool: FACEBOOK_GET_COMMENTS...");
+                $this->line('   Memanggil tool: FACEBOOK_GET_COMMENTS...');
                 $res = $composio->executeAction($team, 'FACEBOOK_GET_COMMENTS', [
                     'object_id' => (string) $objectId,
                 ], $connId);
@@ -102,13 +108,15 @@ class TestPoolComments extends Command
                 if (is_array($raw)) {
                     foreach ($raw as $c) {
                         $commentId = $c['id'] ?? null;
-                        if (empty($commentId)) continue;
+                        if (empty($commentId)) {
+                            continue;
+                        }
 
                         $comments[] = [
-                            'id'        => (string) $commentId,
+                            'id' => (string) $commentId,
                             'author_id' => (string) ($c['from']['id'] ?? ''), // ID User Facebook Pengirim
-                            'author'    => (string) ($c['from']['name'] ?? 'Facebook User'),
-                            'text'      => (string) ($c['message'] ?? ''),
+                            'author' => (string) ($c['from']['name'] ?? 'Facebook User'),
+                            'text' => (string) ($c['message'] ?? ''),
                         ];
                     }
                 }
@@ -118,7 +126,7 @@ class TestPoolComments extends Command
             // B. TARIK KOMENTAR INSTAGRAM
             // ==========================================
             elseif ($platform === 'instagram') {
-                $this->line("   Memanggil tool: INSTAGRAM_GET_IG_MEDIA_COMMENTS...");
+                $this->line('   Memanggil tool: INSTAGRAM_GET_IG_MEDIA_COMMENTS...');
                 $res = $composio->executeAction($team, 'INSTAGRAM_GET_IG_MEDIA_COMMENTS', [
                     'ig_media_id' => (string) $objectId,
                 ], $connId);
@@ -135,13 +143,15 @@ class TestPoolComments extends Command
                     foreach ($raw as $c) {
                         $c = (array) $c;
                         $commentId = $c['id'] ?? null;
-                        if (empty($commentId)) continue;
+                        if (empty($commentId)) {
+                            continue;
+                        }
 
                         $comments[] = [
-                            'id'        => (string) $commentId,
+                            'id' => (string) $commentId,
                             'author_id' => (string) ($c['from']['id'] ?? ($c['user']['id'] ?? '')), // ID User IG Pengirim
-                            'author'    => (string) ($c['username'] ?? ($c['from']['username'] ?? 'Instagram User')),
-                            'text'      => (string) ($c['text'] ?? ($c['message'] ?? '')),
+                            'author' => (string) ($c['username'] ?? ($c['from']['username'] ?? 'Instagram User')),
+                            'text' => (string) ($c['text'] ?? ($c['message'] ?? '')),
                         ];
                     }
                 }
@@ -151,7 +161,7 @@ class TestPoolComments extends Command
             // C. TARIK KOMENTAR YOUTUBE
             // ==========================================
             elseif ($platform === 'youtube') {
-                $this->line("   Memanggil tool: YOUTUBE_LIST_COMMENT_THREADS...");
+                $this->line('   Memanggil tool: YOUTUBE_LIST_COMMENT_THREADS...');
                 $res = $composio->executeAction($team, 'YOUTUBE_LIST_COMMENT_THREADS2', [
                     'videoId' => (string) $objectId,
                 ], $connId);
@@ -160,12 +170,12 @@ class TestPoolComments extends Command
                 if (is_array($items)) {
                     foreach ($items as $item) {
                         $snippet = $item['snippet']['topLevelComment']['snippet'] ?? null;
-                        if ($snippet && !empty($item['id'])) {
+                        if ($snippet && ! empty($item['id'])) {
                             $comments[] = [
-                                'id'        => (string) $item['id'],
+                                'id' => (string) $item['id'],
                                 'author_id' => (string) ($snippet['authorChannelId']['value'] ?? ''),
-                                'author'    => (string) ($snippet['authorDisplayName'] ?? 'YouTube User'),
-                                'text'      => (string) ($snippet['textDisplay'] ?? ''),
+                                'author' => (string) ($snippet['authorDisplayName'] ?? 'YouTube User'),
+                                'text' => (string) ($snippet['textDisplay'] ?? ''),
                             ];
                         }
                     }
@@ -175,13 +185,14 @@ class TestPoolComments extends Command
             // Evaluasi Komentar yang Tertangkap
             if (empty($comments)) {
                 $this->line("   <fg=yellow>○ Belum ada komentar baru yang masuk di {$platform}.</>");
+
                 continue;
             }
 
-            $this->info("   ✓ Ditemukan " . count($comments) . " komentar:");
+            $this->info('   ✓ Ditemukan '.count($comments).' komentar:');
 
             foreach ($comments as $cmt) {
-                $this->line("   ----------------------------------------");
+                $this->line('   ----------------------------------------');
                 $this->line("   👤 Dari: <fg=cyan>{$cmt['author']}</> [User ID: {$cmt['author_id']}]");
                 $this->line("   💬 Pesan: \"{$cmt['text']}\"");
 
@@ -189,16 +200,16 @@ class TestPoolComments extends Command
                 // TIGA LAPIS PENGAMAN ANTI-SELF (ANTI-BOT-LOOP)
                 // ==============================================================
                 $isOwnComment = false;
-                $trimmedText  = trim($cmt['text']);
+                $trimmedText = trim($cmt['text']);
 
                 // LAPISAN 1: Cek apakah teks ini pernah diproduksi oleh AI kita di database!
                 if (InboxMessage::where('sender_type', 'ai')->where('message', $trimmedText)->exists()) {
                     $isOwnComment = true;
-                    $reason = "Teks komentar identik dengan balasan AI di database";
+                    $reason = 'Teks komentar identik dengan balasan AI di database';
                 }
 
                 // LAPISAN 2: Cek apakah Username adalah username Instagram kita sendiri (kenbifarm)
-                elseif ($platform === 'instagram' && !empty($myIgUsername) && str_contains(strtolower($cmt['author']), strtolower($myIgUsername))) {
+                elseif ($platform === 'instagram' && ! empty($myIgUsername) && str_contains(strtolower($cmt['author']), strtolower($myIgUsername))) {
                     $isOwnComment = true;
                     $reason = "Username pengirim cocok dengan akun Instagram kita (@{$myIgUsername})";
                 }
@@ -206,15 +217,16 @@ class TestPoolComments extends Command
                 // LAPISAN 3: Cek User ID / Page ID
                 elseif ($platform === 'facebook' && $cmt['author_id'] === $myPageId) {
                     $isOwnComment = true;
-                    $reason = "Author ID cocok dengan Facebook Page ID";
+                    $reason = 'Author ID cocok dengan Facebook Page ID';
                 } elseif ($platform === 'instagram' && $cmt['author_id'] === $myIgUserId) {
                     $isOwnComment = true;
-                    $reason = "Author ID cocok dengan Instagram User ID";
+                    $reason = 'Author ID cocok dengan Instagram User ID';
                 }
 
                 // JIKA TERBUKTI KOMENTAR DARI KITA SENDIRI, LANGSUNG LEWATI!
                 if ($isOwnComment) {
                     $this->line("   <fg=yellow>⏩ [SKIP ANTI-SELF] Dilewati: {$reason}.</>");
+
                     continue;
                 }
 
@@ -223,39 +235,40 @@ class TestPoolComments extends Command
                 // ==============================================================
                 $thread = InboxThread::firstOrCreate(
                     [
-                        'team_id'     => $team->id,
-                        'platform'    => $platform,
+                        'team_id' => $team->id,
+                        'platform' => $platform,
                         'external_id' => $cmt['id'],
                     ],
                     [
-                        'type'                => 'comment',
-                        'sender_name'         => $cmt['author'],
-                        'last_snippet'        => $cmt['text'],
+                        'type' => 'comment',
+                        'sender_name' => $cmt['author'],
+                        'last_snippet' => $cmt['text'],
                         'last_interaction_at' => now(),
-                        'is_replied'          => false,
+                        'is_replied' => false,
                     ]
                 );
 
                 InboxMessage::firstOrCreate(
                     [
                         'inbox_thread_id' => $thread->id,
-                        'message'         => $cmt['text'],
+                        'message' => $cmt['text'],
                     ],
                     [
                         'sender_type' => 'customer',
-                        'sent_at'     => now(),
+                        'sent_at' => now(),
                     ]
                 );
 
                 if ($thread->is_replied || $thread->messages()->whereIn('sender_type', ['ai', 'user'])->exists()) {
-                    $this->line("   <fg=yellow>⏩ [SKIP SUDAH DIBALAS] Komentar ini sudah pernah dibalas sebelumnya di database.</>");
+                    $this->line('   <fg=yellow>⏩ [SKIP SUDAH DIBALAS] Komentar ini sudah pernah dibalas sebelumnya di database.</>');
+
                     continue;
                 }
 
                 // ==============================================================
                 // ATURAN 3: RACIK BALASAN DENGAN GEMINI AI 3.1 FLASH LITE
                 // ==============================================================
-                $this->line("   🤖 Meracik balasan dengan Gemini AI...");
+                $this->line('   🤖 Meracik balasan dengan Gemini AI...');
                 $aiReply = $gemini->generateSmartReply(
                     $cmt['text'],
                     $team->setting?->brand_knowledge_base,
@@ -273,15 +286,15 @@ class TestPoolComments extends Command
                     // A. FACEBOOK: Mengirim dengan page_id resmi
                     if ($platform === 'facebook') {
                         $res = $composio->executeAction($team, 'FACEBOOK_CREATE_COMMENT', [
-                            'page_id'   => (string) $myPageId,  // Page ID resmi kita
+                            'page_id' => (string) $myPageId,  // Page ID resmi kita
                             'object_id' => (string) $cmt['id'], // Comment ID yang dibalas
-                            'message'   => $aiReply,
+                            'message' => $aiReply,
                         ], $connId);
 
                         if ($res['success']) {
-                            $this->info("   ✓ Berhasil membalas komentar Facebook!");
+                            $this->info('   ✓ Berhasil membalas komentar Facebook!');
                         } else {
-                            $this->error("   X Gagal membalas Facebook: " . json_encode($res));
+                            $this->error('   X Gagal membalas Facebook: '.json_encode($res));
                         }
                     }
 
@@ -289,28 +302,28 @@ class TestPoolComments extends Command
                     elseif ($platform === 'instagram') {
                         $res = $composio->executeAction($team, 'INSTAGRAM_POST_IG_COMMENT_REPLIES', [
                             'ig_comment_id' => (string) $cmt['id'],
-                            'message'    => $aiReply,
+                            'message' => $aiReply,
                         ], $connId);
 
                         if ($res['success']) {
-                            $this->info("   ✓ Berhasil membalas komentar Instagram!");
+                            $this->info('   ✓ Berhasil membalas komentar Instagram!');
                         } else {
-                            $this->error("   X Gagal membalas Instagram: " . json_encode($res));
+                            $this->error('   X Gagal membalas Instagram: '.json_encode($res));
                         }
                     }
 
                     // SIMPAN STATUS BALASAN DI DATABASE
                     InboxMessage::create([
                         'inbox_thread_id' => $thread->id,
-                        'sender_type'     => 'ai',
-                        'message'         => $aiReply,
-                        'sent_at'         => now(),
+                        'sender_type' => 'ai',
+                        'message' => $aiReply,
+                        'sent_at' => now(),
                     ]);
 
                     $thread->update([
-                        'is_replied'          => true,
-                        'replied_at'          => now(),
-                        'last_snippet'        => "AI: {$aiReply}",
+                        'is_replied' => true,
+                        'replied_at' => now(),
+                        'last_snippet' => "AI: {$aiReply}",
                         'last_interaction_at' => now(),
                     ]);
                 }

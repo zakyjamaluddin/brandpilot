@@ -2,9 +2,10 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\Profile;
-use App\Filament\Pages\Tenancy\EditTeamProfile;
 use App\Filament\Widgets\RecentContentPostsWidget;
+use App\Http\Middleware\EnsureTenantHasActiveSubscription;
 use App\Models\Team;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\Authenticate;
@@ -17,15 +18,13 @@ use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\View\PanelsRenderHook;
-use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
-use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Illuminate\Support\Facades\Gate;
-use App\Http\Middleware\EnsureTenantHasActiveSubscription;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -36,7 +35,7 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->favicon(asset('icons/icon-192.png'))
-            ->login(\App\Filament\Pages\Auth\Login::class)
+            ->login(Login::class)
 
             // 1. Multi-Tenancy
             ->tenant(Team::class, slugAttribute: 'slug')
@@ -67,7 +66,6 @@ class AdminPanelProvider extends PanelProvider
                     ->icon('heroicon-o-user-circle')
                     ->url(fn (): string => Profile::getUrl()),
             ])
-
 
             // 2. Tema Elegan: Burgundy (Deep Wine) & Rose Gold
             ->colors([

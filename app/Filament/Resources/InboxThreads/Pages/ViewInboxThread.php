@@ -2,16 +2,15 @@
 
 namespace App\Filament\Resources\InboxThreads\Pages;
 
-
 use App\Filament\Resources\InboxThreads\InboxThreadResource;
 use App\Models\InboxMessage;
-use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 
 class ViewInboxThread extends ViewRecord
 {
     protected static string $resource = InboxThreadResource::class;
+
     protected string $view = 'filament.resources.inbox.view-thread';
 
     public ?string $manualReplyText = '';
@@ -31,7 +30,7 @@ class ViewInboxThread extends ViewRecord
         ]);
 
         $this->record->update([
-            'last_snippet' => 'Anda: ' . $this->manualReplyText,
+            'last_snippet' => 'Anda: '.$this->manualReplyText,
             'last_interaction_at' => now(),
         ]);
 

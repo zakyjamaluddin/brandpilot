@@ -9,6 +9,7 @@ use Illuminate\Console\Command;
 class DispatchScheduledPosts extends Command
 {
     protected $signature = 'brandpilot:publish-scheduled';
+
     protected $description = 'Periksa dan eksekusi postingan video yang jadwalnya sudah tiba atau terlewati';
 
     public function handle()
@@ -34,6 +35,7 @@ class DispatchScheduledPosts extends Command
 
         if ($duePosts->isEmpty()) {
             $this->line('Tidak ada postingan yang menunggu jadwal saat ini.');
+
             return;
         }
 
@@ -49,7 +51,7 @@ class DispatchScheduledPosts extends Command
                 $this->info("✓ Post ID #{$post->id} selesai diproses.");
             } catch (\Throwable $e) {
                 $post->update(['status' => 'failed']);
-                $this->error("✗ Gagal memposting Post ID #{$post->id}: " . $e->getMessage());
+                $this->error("✗ Gagal memposting Post ID #{$post->id}: ".$e->getMessage());
             }
         }
 

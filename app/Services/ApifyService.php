@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ApiKey;
 use App\Models\Team;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -12,33 +13,29 @@ class ApifyService
 
     public function __construct()
     {
-        $this->actor = config('services.apify.actor');
+        $this->actor = config('services.apify.actor', 'clockworks~tiktok-scraper');
     }
 
     /**
-     * Token Apify milik tenant. Core token di .env TIDAK dipakai sebagai fallback.
+     * Token Apify: prioritas token milik tenant, lalu fallback ke token master di env / DB.
      */
     protected function tokenFor(?Team $team): string
     {
-        $token = $team?->apifyToken() ?? '';
+        $token = $team?->apifyToken()
+            ?: (string) config('services.apify.token')
+            ?: (string) ApiKey::where('provider', 'apify')->where('is_active', true)->value('api_key');
 
-        if ($token === '') {
+        if (trim($token) === '') {
             throw new \RuntimeException(
-                $team
-                    ? "Workspace [{$team->name}] belum memiliki Apify Token. Isi di menu Setting → Apify Token."
-                    : 'Apify Token belum tersedia: operasi ini membutuhkan tenant.'
+                'Apify Token belum tersedia di sistem. Masukkan APIFY_API_KEY di .env atau tabel ApiKey.'
             );
         }
 
-        return $token;
+        return trim($token);
     }
 
     /**
      * Ambil 1 video TikTok terbaru (skip pinned post).
-     *
-     * Hemat kuota Apify: normalnya hanya 1 hasil per run ($3,70/1.000 hasil).
-     * Hanya jika hasil teratas ternyata pinned, kita ambil 5 hasil sekali lagi —
-     * kejadian langka, dan pinned post biasanya tidak berubah-ubah.
      */
     public function getLatestNonPinnedVideo(string $tiktok_profile_url, ?Team $team = null): ?array
     {
@@ -67,8 +64,8 @@ class ApifyService
             }
 
             return [
-                'post_id'   => $id,
-                'caption'   => $item['text'] ?? ($item['desc'] ?? ''),
+                'post_id' => $id,
+                'caption' => $item['text'] ?? ($item['desc'] ?? ''),
                 'video_url' => $item['videoUrl'] ?? ($item['webVideoUrl'] ?? ''),
                 'posted_at' => $item['createTimeISO'] ?? now(),
             ];
@@ -84,12 +81,12 @@ class ApifyService
         $response = Http::timeout(120)->post($endpoint, [
             'profiles' => [$profileUrl],
             'resultsPerPage' => $limit,
-            'excludePinnedPosts' => true, // hemat kuota: pinned tidak ikut dihitung/dikembalikan
+            'excludePinnedPosts' => true,
             'shouldDownloadVideos' => false,
         ]);
 
         if (! $response->successful()) {
-            Log::error('Apify TikTok Scraping Failed: ' . $response->body());
+            Log::error('Apify TikTok Scraping Failed: '.$response->body());
 
             return [];
         }
@@ -101,6 +98,9 @@ class ApifyService
 
     protected function isPinned(array $item): bool
     {
-        return (bool) ($item['isPinned'] ?? ($item['pinned'] ?? false));
+        return ! empty($item['isPinned'])
+            || ! empty($item['pinned'])
+            || ! empty($item['is_pinned'])
+            || ! empty($item['is_top']);
     }
 }

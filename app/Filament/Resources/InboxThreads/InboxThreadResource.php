@@ -16,14 +16,16 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 
-
 class InboxThreadResource extends Resource
 {
     protected static ?string $model = InboxThread::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+
     protected static ?string $navigationLabel = 'Inbox';
+
     protected static ?string $tenantOwnershipRelationshipName = 'team';
+
     protected static bool $shouldRegisterNavigation = false;
 
     public static function form(Schema $schema): Schema

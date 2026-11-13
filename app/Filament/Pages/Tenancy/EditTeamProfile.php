@@ -2,9 +2,9 @@
 
 namespace App\Filament\Pages\Tenancy;
 
-use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\TextInput;
 use Filament\Pages\Tenancy\EditTenantProfile;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
 class EditTeamProfile extends EditTenantProfile

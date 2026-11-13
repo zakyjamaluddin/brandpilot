@@ -26,6 +26,6 @@ class ContentPublishedPushNotification extends Notification
         return (new WebPushMessage)
             ->title('🚀 Konten Berhasil Dipublikasikan!')
             ->body("Konten: \"{$this->post->title}\" telah berhasil tayang di {$platforms}.")
-            ->data(['url' => url('/admin/' . $this->post->team->slug)]);
+            ->data(['url' => url('/admin/'.$this->post->team->slug)]);
     }
 }

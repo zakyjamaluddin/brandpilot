@@ -8,6 +8,7 @@ use App\Filament\Resources\Teams\Pages\ListTeams;
 use App\Filament\Resources\Teams\Schemas\TeamForm;
 use App\Filament\Resources\Teams\Tables\TeamsTable;
 use App\Models\Team;
+use App\Models\User;
 use BackedEnum;
 use Filament\Facades\Filament;
 use Filament\Resources\Resource;
@@ -37,7 +38,7 @@ class TeamResource extends Resource
 
         $user = Filament::auth()->user();
 
-        if (! $user instanceof \App\Models\User || $user->isSuperAdmin()) {
+        if (! $user instanceof User || $user->isSuperAdmin()) {
             return $query;
         }
 

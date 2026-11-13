@@ -9,11 +9,12 @@ use Illuminate\Console\Command;
 class CheckSubscriptionPushAlerts extends Command
 {
     protected $signature = 'brandpilot:check-subscription-push';
+
     protected $description = 'Periksa masa aktif tenant dan tembakkan Push Notification untuk 7, 3, 1 hari, dan expired';
 
     public function handle()
     {
-        $this->info("Memeriksa masa aktif seluruh tenant untuk Push Notification...");
+        $this->info('Memeriksa masa aktif seluruh tenant untuk Push Notification...');
 
         $teams = Team::whereNotNull('subscription_expires_at')->get();
 
@@ -41,6 +42,6 @@ class CheckSubscriptionPushAlerts extends Command
             }
         }
 
-        $this->info("Pemeriksaan selesai.");
+        $this->info('Pemeriksaan selesai.');
     }
 }

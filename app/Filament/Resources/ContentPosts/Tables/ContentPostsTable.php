@@ -5,8 +5,8 @@ namespace App\Filament\Resources\ContentPosts\Tables;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Tables\Table;
 use Filament\Tables;
+use Filament\Tables\Table;
 
 class ContentPostsTable
 {
@@ -27,7 +27,7 @@ class ContentPostsTable
                     ->label('Tipe Caption')
                     ->colors([
                         'amber' => 'gemini_ai',
-                        'gray'  => 'manual',
+                        'gray' => 'manual',
                     ]),
 
                 Tables\Columns\BadgeColumn::make('status')
@@ -35,7 +35,7 @@ class ContentPostsTable
                         'warning' => 'pending',
                         'primary' => 'processing',
                         'success' => 'published',
-                        'danger'  => 'failed',
+                        'danger' => 'failed',
                     ]),
 
                 Tables\Columns\TextColumn::make('scheduled_at')

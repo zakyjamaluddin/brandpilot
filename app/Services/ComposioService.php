@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ApiKey;
 use App\Models\SocialIntegration;
 use App\Models\Team;
 use Exception;
@@ -17,7 +18,6 @@ class ComposioService
      * Base URL resmi Composio REST API v3.1
      */
     protected string $baseUrl = 'https://backend.composio.dev/api/v3.1';
-
 
     /**
      * 1. Mengambil atau Membuat Auth Config ID untuk Toolkit (facebook, instagram, youtube)
@@ -35,7 +35,7 @@ class ComposioService
 
             if ($response->successful()) {
                 $items = $response->json('items') ?? ($response->json('data') ?? []);
-                if (!empty($items) && isset($items[0]['id'])) {
+                if (! empty($items) && isset($items[0]['id'])) {
                     return $items[0]['id'];
                 }
             }
@@ -52,13 +52,16 @@ class ComposioService
 
             if ($createRes->successful()) {
                 $created = $createRes->json();
+
                 return $created['auth_config']['id'] ?? ($created['id'] ?? null);
             }
 
-            Log::error("Gagal membuat auth_config Composio [{$slug}]: " . $createRes->body());
+            Log::error("Gagal membuat auth_config Composio [{$slug}]: ".$createRes->body());
+
             return null;
         } catch (Throwable $e) {
-            Log::error("Exception getAuthConfigId ({$toolkitSlug}) untuk Tenant [{$team->slug}]: " . $e->getMessage());
+            Log::error("Exception getAuthConfigId ({$toolkitSlug}) untuk Tenant [{$team->slug}]: ".$e->getMessage());
+
             return null;
         }
     }
@@ -69,10 +72,10 @@ class ComposioService
     public function initiateConnection(Team $team, string $appName): string
     {
         $toolkit = strtolower($appName);
-        $userId  = "brandpilot_tenant_{$team->id}_{$team->slug}";
+        $userId = "brandpilot_tenant_{$team->id}_{$team->slug}";
 
         $authConfigId = $this->getAuthConfigId($team, $toolkit);
-        if (!$authConfigId) {
+        if (! $authConfigId) {
             throw new Exception("Gagal mendapatkan Auth Config ID dari Composio untuk platform {$appName}.");
         }
 
@@ -81,21 +84,21 @@ class ComposioService
 
         $response = $this->client($team)->post('/connected_accounts/link', [
             'auth_config_id' => $authConfigId,
-            'user_id'        => $userId,
-            'callback_url'   => $callbackUrl,
+            'user_id' => $userId,
+            'callback_url' => $callbackUrl,
         ]);
 
         if ($response->successful()) {
             $data = $response->json();
             $url = $data['redirect_url'] ?? ($data['redirectUrl'] ?? ($data['url'] ?? null));
 
-            if (!empty($url)) {
+            if (! empty($url)) {
                 return $url;
             }
         }
 
-        Log::error("Composio /connected_accounts/link gagal untuk [{$appName}]: " . $response->body());
-        throw new Exception("Gagal mengambil link OAuth dari Composio: " . $response->body());
+        Log::error("Composio /connected_accounts/link gagal untuk [{$appName}]: ".$response->body());
+        throw new Exception('Gagal mengambil link OAuth dari Composio: '.$response->body());
     }
 
     /**
@@ -128,7 +131,7 @@ class ComposioService
                 $cursor = $res->json('next_cursor') ?? $res->json('nextCursor');
             } while ($cursor && count($items) < 1000);
         } catch (Throwable $e) {
-            Log::error("Exception syncConnectedAccounts untuk Tenant [{$team->slug}]: " . $e->getMessage());
+            Log::error("Exception syncConnectedAccounts untuk Tenant [{$team->slug}]: ".$e->getMessage());
 
             return;
         }
@@ -179,13 +182,13 @@ class ComposioService
 
                 SocialIntegration::updateOrCreate(
                     [
-                        'team_id'  => $team->id,
+                        'team_id' => $team->id,
                         'platform' => $platform,
                     ],
                     [
                         'composio_connection_id' => $item['id'],
-                        'account_name'           => ucfirst(str_replace('_', ' ', (string) ($item['word_id'] ?? $item['alias'] ?? $platform))),
-                        'is_connected'           => true,
+                        'account_name' => ucfirst(str_replace('_', ' ', (string) ($item['word_id'] ?? $item['alias'] ?? $platform))),
+                        'is_connected' => true,
                     ]
                 );
 
@@ -197,9 +200,9 @@ class ComposioService
             SocialIntegration::where('team_id', $team->id)
                 ->where('platform', $platform)
                 ->update([
-                    'is_connected'           => false,
+                    'is_connected' => false,
                     'composio_connection_id' => null,
-                    'account_name'           => null,
+                    'account_name' => null,
                 ]);
         }
     }
@@ -210,7 +213,7 @@ class ComposioService
      */
     protected function apiKeyFor(Team $team): string
     {
-        $key = trim((string) \App\Models\ApiKey::query()
+        $key = trim((string) ApiKey::query()
             ->where('provider', 'composio')
             ->where('is_active', true)
             ->orderBy('id')
@@ -228,9 +231,9 @@ class ComposioService
         $apiKey = $this->apiKeyFor($team);
 
         return Http::withHeaders([
-            'x-api-key'    => trim($apiKey),
+            'x-api-key' => trim($apiKey),
             'Content-Type' => 'application/json',
-            'Accept'       => 'application/json',
+            'Accept' => 'application/json',
         ])->baseUrl($this->baseUrl)->timeout(120); // Naikkan ke 120 detik
     }
 
@@ -247,13 +250,13 @@ class ComposioService
      */
     public function executeAction(Team $team, string $toolSlug, array $params = [], ?string $connectedAccountId = null): array
     {
-        $userId    = $this->getUserId($team);
+        $userId = $this->getUserId($team);
         $arguments = empty($params) ? (object) [] : $params;
 
         $payload = [
-            'user_id'   => $userId,
+            'user_id' => $userId,
             'arguments' => $arguments,
-            'version'   => 'latest',
+            'version' => 'latest',
         ];
 
         if ($connectedAccountId) {
@@ -266,7 +269,7 @@ class ComposioService
         // Auto-heal jika ada mismatch ID
         $errorCode = $json['error']['code'] ?? null;
         if (in_array($errorCode, [1810, 1812]) && isset($payload['connected_account_id'])) {
-            Log::warning("Composio: Melepas connected_account_id untuk auto-resolve entity...");
+            Log::warning('Composio: Melepas connected_account_id untuk auto-resolve entity...');
             unset($payload['connected_account_id']);
 
             $response = $this->client($team)->post("/tools/execute/{$toolSlug}", $payload);
@@ -277,19 +280,19 @@ class ComposioService
         if ($response->successful() && ($json['successful'] ?? true) && empty($json['error'])) {
             return [
                 'success' => true,
-                'data'    => $json,
+                'data' => $json,
             ];
         }
 
         Log::error("Composio Action Gagal [{$toolSlug}]:", [
-            'team'     => $team->slug,
+            'team' => $team->slug,
             'response' => $json,
         ]);
 
         return [
             'success' => false,
-            'error'   => $json['error'] ?? ($json['message'] ?? 'Gagal mengeksekusi aksi Composio.'),
-            'data'    => $json,
+            'error' => $json['error'] ?? ($json['message'] ?? 'Gagal mengeksekusi aksi Composio.'),
+            'data' => $json,
         ];
     }
 
@@ -309,42 +312,43 @@ class ComposioService
             }
 
             if (! $igUserId) {
-                throw new Exception("Gagal mendapatkan ig_user_id dari akun Instagram.");
+                throw new Exception('Gagal mendapatkan ig_user_id dari akun Instagram.');
             }
 
             Log::info("Instagram: Menggunakan ig_user_id [{$igUserId}]");
 
             // 2. Langkah 1: Buat Media Container
-            Log::info("Instagram: Membuat Media Container Reel...");
+            Log::info('Instagram: Membuat Media Container Reel...');
             $containerRes = $this->executeAction($team, 'INSTAGRAM_CREATE_MEDIA_CONTAINER', [
                 'ig_user_id' => (string) $igUserId,
                 'media_type' => 'REELS',
-                'video_url'  => $videoUrl,
-                'caption'    => $caption,
+                'video_url' => $videoUrl,
+                'caption' => $caption,
             ], $connectedAccountId);
 
             $creationId = $containerRes['data']['data']['id']
                 ?? ($containerRes['data']['id'] ?? null);
 
             if (! $creationId) {
-                throw new Exception("Gagal membuat Media Container: " . json_encode($containerRes));
+                throw new Exception('Gagal membuat Media Container: '.json_encode($containerRes));
             }
 
             // Beri jeda 12 detik agar server Meta selesai memproses dan mengompres video
-            Log::info("Instagram: Menunggu rendering video di server Meta (12 detik)...");
+            Log::info('Instagram: Menunggu rendering video di server Meta (12 detik)...');
             sleep(12);
 
             // 3. Langkah 2: Terbitkan Post Reel
             Log::info("Instagram: Menerbitkan Container ID: {$creationId}...");
             $publishRes = $this->executeAction($team, 'INSTAGRAM_CREATE_POST', [
-                'ig_user_id'  => (string) $igUserId,
+                'ig_user_id' => (string) $igUserId,
                 'creation_id' => (string) $creationId,
             ], $connectedAccountId);
 
             return $publishRes;
 
-        } catch (\Throwable $e) {
-            Log::error("Gagal Posting Instagram Reel: " . $e->getMessage());
+        } catch (Throwable $e) {
+            Log::error('Gagal Posting Instagram Reel: '.$e->getMessage());
+
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -356,7 +360,6 @@ class ComposioService
     {
         return $this->executeAction($team, $actionName, $params, $connectedAccountId);
     }
-
 
     /**
      * Mengunggah berkas video lokal ke Composio S3 Storage untuk mendapatkan s3key (FileUploadable)
@@ -382,19 +385,19 @@ class ComposioService
         $res = Http::withHeaders(['x-api-key' => $apiKey])->timeout(60)
             ->post('https://backend.composio.dev/api/v3/files/upload/request', [
                 'toolkit_slug' => 'youtube',
-                'tool_slug'    => 'YOUTUBE_UPLOAD_VIDEO',
-                'filename'     => $filename,
-                'mimetype'     => $mimeType,
-                'md5'          => md5($contents),
+                'tool_slug' => 'YOUTUBE_UPLOAD_VIDEO',
+                'filename' => $filename,
+                'mimetype' => $mimeType,
+                'md5' => md5($contents),
             ]);
 
         if (! $res->successful()) {
-            throw new Exception('Composio upload/request gagal: ' . $res->body());
+            throw new Exception('Composio upload/request gagal: '.$res->body());
         }
 
-        $json    = $res->json();
-        $key     = $json['key'];                                     // <-- key, bukan s3key
-        $url     = $json['new_presigned_url'] ?? $json['newPresignedUrl'] ?? null;
+        $json = $res->json();
+        $key = $json['key'];                                     // <-- key, bukan s3key
+        $url = $json['new_presigned_url'] ?? $json['newPresignedUrl'] ?? null;
         $backend = $json['metadata']['storage_backend'] ?? 's3';
 
         // 2) PUT isi file (lewati kalau dedupe bilang sudah ada)
@@ -405,7 +408,7 @@ class ComposioService
             }
             $put = Http::withHeaders($headers)->timeout(900)->withBody($contents, $mimeType)->put($url);
             if (! $put->successful()) {
-                throw new Exception("PUT ke storage gagal ({$put->status()}): " . $put->body());
+                throw new Exception("PUT ke storage gagal ({$put->status()}): ".$put->body());
             }
         }
 
@@ -415,17 +418,16 @@ class ComposioService
         return ['name' => $filename, 'mimetype' => $mimeType, 's3key' => $key];
     }
 
-
-        /**
+    /**
      * Unggah video ke YouTube: auth dari Composio (proxy), byte dikirim langsung ke
      * YouTube lewat resumable upload. Aksi YOUTUBE_UPLOAD_VIDEO tidak dipakai karena
      * relay berkasnya merusak stream (video terbit lalu dibuang YouTube).
      */
     public function uploadYoutubeVideo(Team $team, string $videoSource, array $meta, ?string $connectedAccountId = null): array
     {
-        $apiKey  = $this->apiKeyFor($team);
-        $base    = rtrim(config('services.composio.base_url', 'https://backend.composio.dev/api/v3'), '/');
-        $mime    = $meta['mimetype'] ?? 'video/mp4';
+        $apiKey = $this->apiKeyFor($team);
+        $base = rtrim(config('services.composio.base_url', 'https://backend.composio.dev/api/v3'), '/');
+        $mime = $meta['mimetype'] ?? 'video/mp4';
         $account = $connectedAccountId ?: $this->activeYoutubeAccountId($team);
 
         if (! $account) {
@@ -433,15 +435,16 @@ class ComposioService
         }
 
         // 1) berkas lokal (ukuran pasti + bisa di-stream, tidak dimuat ke memori)
-        $tmp  = null;
+        $tmp = null;
         $path = $videoSource;
         Log::info("YouTube: mempersiapkan unggah video dari sumber: {$videoSource}");
         if (! is_file($path)) {
-            $tmp = tempnam(sys_get_temp_dir(), 'ytshort_') . '.mp4';
-            $dl  = Http::timeout(600)->sink($tmp)->get($videoSource);
+            $tmp = tempnam(sys_get_temp_dir(), 'ytshort_').'.mp4';
+            $dl = Http::timeout(600)->sink($tmp)->get($videoSource);
             if (! $dl->successful() || ! is_file($tmp) || filesize($tmp) === 0) {
                 @unlink($tmp);
-                return ['success' => false, 'error' => 'Gagal mengambil sumber video: ' . $videoSource];
+
+                return ['success' => false, 'error' => 'Gagal mengambil sumber video: '.$videoSource];
             }
             $path = $tmp;
         }
@@ -449,19 +452,19 @@ class ComposioService
 
         // 2) minta sesi resumable ke YouTube (Composio menyuntikkan auth-nya)
         $init = Http::withHeaders(['x-api-key' => $apiKey])->timeout(120)
-            ->post($base . '/tools/execute/proxy', [
+            ->post($base.'/tools/execute/proxy', [
                 'connected_account_id' => $account,
-                'endpoint'             => 'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
-                'method'               => 'POST',
-                'body'                 => [
+                'endpoint' => 'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
+                'method' => 'POST',
+                'body' => [
                     'snippet' => [
-                        'title'       => mb_substr((string) ($meta['title'] ?? ''), 0, 95),
+                        'title' => mb_substr((string) ($meta['title'] ?? ''), 0, 95),
                         'description' => (string) ($meta['description'] ?? ''),
-                        'tags'        => array_slice($meta['tags'] ?? [], 0, 15),
-                        'categoryId'  => (string) ($meta['categoryId'] ?? '22'),
+                        'tags' => array_slice($meta['tags'] ?? [], 0, 15),
+                        'categoryId' => (string) ($meta['categoryId'] ?? '22'),
                     ],
                     'status' => [
-                        'privacyStatus'           => $meta['privacyStatus'] ?? 'private',
+                        'privacyStatus' => $meta['privacyStatus'] ?? 'private',
                         'selfDeclaredMadeForKids' => false,
                     ],
                 ],
@@ -475,7 +478,8 @@ class ComposioService
         if (! $location) {
             @unlink($tmp);
             Log::error('YouTube: gagal membuat sesi resumable', ['http' => $init->status(), 'body' => $init->body()]);
-return ['success' => false, 'error' => 'Gagal membuat sesi upload YouTube: ' . $init->body()];
+
+            return ['success' => false, 'error' => 'Gagal membuat sesi upload YouTube: '.$init->body()];
         }
 
         // 3) kirim byte langsung ke YouTube — timeout panjang, body berupa stream
@@ -486,24 +490,30 @@ return ['success' => false, 'error' => 'Gagal membuat sesi upload YouTube: ' . $
                 ->withBody($handle, $mime)
                 ->put($location);
         } finally {
-            if (is_resource($handle)) fclose($handle);
-            if ($tmp) @unlink($tmp);
+            if (is_resource($handle)) {
+                fclose($handle);
+            }
+            if ($tmp) {
+                @unlink($tmp);
+            }
         }
 
         $videoId = $put->json('id');
         if (! $put->successful() || ! $videoId) {
             Log::error('YouTube: PUT resumable gagal', ['http' => $put->status(), 'body' => $put->body()]);
-            return ['success' => false, 'error' => 'Unggah ke YouTube gagal: ' . $put->body()];
+
+            return ['success' => false, 'error' => 'Unggah ke YouTube gagal: '.$put->body()];
         }
 
         Log::info("YouTube: video terunggah ({$size} bytes) videoId={$videoId}");
+
         return ['success' => true, 'video_id' => (string) $videoId, 'size' => $size];
     }
 
     /** 'succeeded' | 'processing' | 'failed' | null (null = video sudah dibuang YouTube) */
     public function youtubeProcessingStatus(Team $team, string $videoId, ?string $connectedAccountId = null): ?string
     {
-        $res   = $this->executeAction($team, 'YOUTUBE_VIDEO_DETAILS', [
+        $res = $this->executeAction($team, 'YOUTUBE_VIDEO_DETAILS', [
             'id' => $videoId, 'part' => 'status,processingDetails',
         ], $connectedAccountId);
 
@@ -522,6 +532,7 @@ return ['success' => false, 'error' => 'Gagal membuat sesi upload YouTube: ' . $
         if (! $items) {
             return null;
         }
+
         return $items[0]['processingDetails']['processingStatus'] ?? ($items[0]['status']['uploadStatus'] ?? null);
     }
 
@@ -529,14 +540,14 @@ return ['success' => false, 'error' => 'Gagal membuat sesi upload YouTube: ' . $
     public function activeYoutubeAccountId(Team $team): ?string
     {
         $apiKey = $this->apiKeyFor($team);
-        $base   = rtrim(config('services.composio.base_url', 'https://backend.composio.dev/api/v3'), '/');
+        $base = rtrim(config('services.composio.base_url', 'https://backend.composio.dev/api/v3'), '/');
 
         $resp = Http::withHeaders(['x-api-key' => $apiKey])->timeout(60)
-            ->get($base . '/connected_accounts', [
+            ->get($base.'/connected_accounts', [
                 'toolkit_slugs' => 'youtube',
-                'user_ids'      => $this->getUserId($team),
-                'statuses'      => 'ACTIVE',
-                'limit'         => 20,
+                'user_ids' => $this->getUserId($team),
+                'statuses' => 'ACTIVE',
+                'limit' => 20,
             ]);
 
         foreach (($resp->json('items') ?? []) as $item) {
@@ -544,10 +555,9 @@ return ['success' => false, 'error' => 'Gagal membuat sesi upload YouTube: ' . $
                 return $item['id'];
             }
         }
+
         return null;
     }
-
-    
 
     /**
      * 2. Instagram Carousel (Katalog Resmi: MEDIA_CONTAINER -> CAROUSEL_CONTAINER -> CREATE_POST)
@@ -560,7 +570,7 @@ return ['success' => false, 'error' => 'Gagal membuat sesi upload YouTube: ' . $
             $igUserId = $profileRes['data']['data']['id'] ?? ($profileRes['data']['id'] ?? null);
 
             if (! $igUserId) {
-                throw new Exception("Gagal mendapatkan ig_user_id.");
+                throw new Exception('Gagal mendapatkan ig_user_id.');
             }
 
             $childContainerIds = [];
@@ -568,11 +578,11 @@ return ['success' => false, 'error' => 'Gagal membuat sesi upload YouTube: ' . $
             $validPhotos = array_slice($publicImageUrls, 0, 10);
 
             // LANGKAH 1: Buat Item Container per foto (is_carousel_item = true)
-            Log::info("Instagram Carousel: Langkah 1 -> Membuat " . count($validPhotos) . " item containers...");
+            Log::info('Instagram Carousel: Langkah 1 -> Membuat '.count($validPhotos).' item containers...');
             foreach ($validPhotos as $idx => $imgUrl) {
                 $itemRes = $this->executeAction($team, 'INSTAGRAM_CREATE_MEDIA_CONTAINER', [
-                    'ig_user_id'       => (string) $igUserId,
-                    'image_url'        => $imgUrl, // URL publik Zaky Apps (bukan localhost!)
+                    'ig_user_id' => (string) $igUserId,
+                    'image_url' => $imgUrl, // URL publik Zaky Apps (bukan localhost!)
                     'is_carousel_item' => true,
                 ], $connectedAccountId);
 
@@ -580,42 +590,43 @@ return ['success' => false, 'error' => 'Gagal membuat sesi upload YouTube: ' . $
                 if ($childId) {
                     $childContainerIds[] = (string) $childId;
                 } else {
-                    Log::warning("Gagal membuat item container untuk foto ke-" . ($idx + 1) . ": " . json_encode($itemRes));
+                    Log::warning('Gagal membuat item container untuk foto ke-'.($idx + 1).': '.json_encode($itemRes));
                 }
             }
 
             if (count($childContainerIds) < 2) {
-                throw new Exception("Instagram Carousel membutuhkan minimal 2 foto valid. Berhasil dibuat: " . count($childContainerIds));
+                throw new Exception('Instagram Carousel membutuhkan minimal 2 foto valid. Berhasil dibuat: '.count($childContainerIds));
             }
 
             // LANGKAH 2: Satukan ke Wadah Induk Carousel (INSTAGRAM_CREATE_CAROUSEL_CONTAINER)
-            Log::info("Instagram Carousel: Langkah 2 -> Menggabungkan " . count($childContainerIds) . " container ke INSTAGRAM_CREATE_CAROUSEL_CONTAINER...");
+            Log::info('Instagram Carousel: Langkah 2 -> Menggabungkan '.count($childContainerIds).' container ke INSTAGRAM_CREATE_CAROUSEL_CONTAINER...');
             $parentRes = $this->executeAction($team, 'INSTAGRAM_CREATE_CAROUSEL_CONTAINER', [
                 'ig_user_id' => (string) $igUserId,
-                'children'   => $childContainerIds,
-                'caption'    => Str::limit($caption, 2100),
+                'children' => $childContainerIds,
+                'caption' => Str::limit($caption, 2100),
             ], $connectedAccountId);
 
             $carouselCreationId = $parentRes['data']['data']['id'] ?? ($parentRes['data']['id'] ?? null);
 
             if (! $carouselCreationId) {
-                throw new Exception("Gagal membuat Carousel Container: " . json_encode($parentRes));
+                throw new Exception('Gagal membuat Carousel Container: '.json_encode($parentRes));
             }
 
-            Log::info("Instagram Carousel: Menunggu rendering container Meta (10 detik)...");
+            Log::info('Instagram Carousel: Menunggu rendering container Meta (10 detik)...');
             sleep(10);
 
             // LANGKAH 3: Terbitkan ke Feed (INSTAGRAM_CREATE_POST)
             Log::info("Instagram Carousel: Langkah 3 -> Menerbitkan Carousel ID [{$carouselCreationId}]...");
             $publishRes = $this->executeAction($team, 'INSTAGRAM_CREATE_POST', [
-                'ig_user_id'  => (string) $igUserId,
+                'ig_user_id' => (string) $igUserId,
                 'creation_id' => (string) $carouselCreationId,
             ], $connectedAccountId);
 
             return $publishRes;
 
-        } catch (\Throwable $e) {
-            Log::error("Gagal Menerbitkan Instagram Carousel: " . $e->getMessage());
+        } catch (Throwable $e) {
+            Log::error('Gagal Menerbitkan Instagram Carousel: '.$e->getMessage());
+
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -676,7 +687,7 @@ return ['success' => false, 'error' => 'Gagal membuat sesi upload YouTube: ' . $
         try {
             // 1. Cek apakah token sudah tersimpan di metadata database
             $integration = SocialIntegration::where('team_id', $team->id)->where('platform', 'facebook')->first();
-            if (!empty($integration->metadata['page_access_token'])) {
+            if (! empty($integration->metadata['page_access_token'])) {
                 return $integration->metadata['page_access_token'];
             }
 
@@ -699,13 +710,15 @@ return ['success' => false, 'error' => 'Gagal membuat sesi upload YouTube: ' . $
                         $meta['page_access_token'] = $token;
                         $integration->update(['metadata' => $meta]);
                     }
+
                     return $token;
                 }
             }
 
             return null;
-        } catch (\Throwable $e) {
-            Log::error("Gagal mendapatkan Page Access Token: " . $e->getMessage());
+        } catch (Throwable $e) {
+            Log::error('Gagal mendapatkan Page Access Token: '.$e->getMessage());
+
             return null;
         }
     }
@@ -731,13 +744,13 @@ return ['success' => false, 'error' => 'Gagal membuat sesi upload YouTube: ' . $
             $photoUrls = array_slice($publicImageUrls, 0, 10);
             $attachedMedia = [];
 
-            Log::info("Facebook Multi-Photo Album: Mengunggah " . count($photoUrls) . " foto sebagai unpublished dengan Page Token...");
+            Log::info('Facebook Multi-Photo Album: Mengunggah '.count($photoUrls).' foto sebagai unpublished dengan Page Token...');
 
             // 2. Per foto: POST /{page}/photos?published=false&url=<url>&access_token=*** -> dapat media_fbid
             foreach ($photoUrls as $idx => $imgUrl) {
                 $res = Http::timeout(60)->post("https://graph.facebook.com/v21.0/{$pageId}/photos", [
-                    'url'          => $imgUrl,
-                    'published'    => 'false', // Unshared/staging
+                    'url' => $imgUrl,
+                    'published' => 'false', // Unshared/staging
                     'access_token' => $pageToken,
                 ]);
 
@@ -747,44 +760,45 @@ return ['success' => false, 'error' => 'Gagal membuat sesi upload YouTube: ' . $
                 if ($photoId) {
                     $attachedMedia[] = ['media_fbid' => (string) $photoId];
                 } else {
-                    Log::warning("Gagal upload unpublished foto ke-" . ($idx + 1) . ": " . $res->body());
+                    Log::warning('Gagal upload unpublished foto ke-'.($idx + 1).': '.$res->body());
                 }
             }
 
             if (empty($attachedMedia)) {
-                throw new Exception("Tidak ada foto yang berhasil diunggah ke staging Facebook.");
+                throw new Exception('Tidak ada foto yang berhasil diunggah ke staging Facebook.');
             }
 
-            Log::info("Facebook Multi-Photo Album: Menggabungkan " . count($attachedMedia) . " foto ke 1 postingan feed...");
+            Log::info('Facebook Multi-Photo Album: Menggabungkan '.count($attachedMedia).' foto ke 1 postingan feed...');
 
             // 3. Sekali saja: POST /{page}/feed dengan attached_media -> 1 POSTINGAN GRID UTUH!
             $publishRes = Http::timeout(60)->post("https://graph.facebook.com/v21.0/{$pageId}/feed", [
-                'message'        => "{$title}\n\n{$description}",
+                'message' => "{$title}\n\n{$description}",
                 'attached_media' => $attachedMedia,
-                'access_token'   => $pageToken,
+                'access_token' => $pageToken,
             ]);
 
             $result = $publishRes->json();
 
-            if ($publishRes->successful() && !empty($result['id'])) {
+            if ($publishRes->successful() && ! empty($result['id'])) {
                 Log::info("✓ SUKSES BESAR! 1 Postingan Facebook Album terbit dengan ID: {$result['id']}");
+
                 return [
                     'success' => true,
-                    'data'    => ['data' => ['id' => $result['id']]],
+                    'data' => ['data' => ['id' => $result['id']]],
                 ];
             }
 
-            Log::error("Gagal menerbitkan Facebook feed album: " . $publishRes->body());
+            Log::error('Gagal menerbitkan Facebook feed album: '.$publishRes->body());
+
             return [
                 'success' => false,
-                'error'   => $result['error']['message'] ?? 'Gagal membuat multi-photo feed post di Facebook.',
+                'error' => $result['error']['message'] ?? 'Gagal membuat multi-photo feed post di Facebook.',
             ];
 
-        } catch (\Throwable $e) {
-            Log::error("Exception postFacebookCarouselAlbum: " . $e->getMessage());
+        } catch (Throwable $e) {
+            Log::error('Exception postFacebookCarouselAlbum: '.$e->getMessage());
+
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
-
-
 }

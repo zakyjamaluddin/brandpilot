@@ -5,8 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Team extends Model
 {
@@ -82,17 +82,15 @@ class Team extends Model
         return $this->hasMany(ContentPost::class);
     }
 
-    /** @return HasMany<\App\Models\Role, self> */
+    /** @return HasMany<Role, self> */
     public function roles(): HasMany
     {
-        return $this->hasMany(\App\Models\Role::class);
+        return $this->hasMany(Role::class);
     }
 
-
-    /** @return HasMany<\App\Models\InboxThread, self> */
+    /** @return HasMany<InboxThread, self> */
     public function inboxThreads(): HasMany
     {
-        return $this->hasMany(\App\Models\InboxThread::class);
+        return $this->hasMany(InboxThread::class);
     }
-
 }

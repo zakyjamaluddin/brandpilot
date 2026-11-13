@@ -27,8 +27,8 @@ class InboxThread extends Model
 
     protected $casts = [
         'last_interaction_at' => 'datetime',
-        'is_replied'          => 'boolean',
-        'replied_at'          => 'datetime',
+        'is_replied' => 'boolean',
+        'replied_at' => 'datetime',
     ];
 
     public function team(): BelongsTo

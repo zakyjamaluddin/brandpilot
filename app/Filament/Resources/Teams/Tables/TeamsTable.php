@@ -33,7 +33,7 @@ class TeamsTable
                     ->colors([
                         'success' => 'active',
                         'warning' => 'trial',
-                        'danger'  => 'expired',
+                        'danger' => 'expired',
                     ]),
             ])
             ->filters([

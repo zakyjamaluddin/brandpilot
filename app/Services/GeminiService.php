@@ -2,11 +2,15 @@
 
 namespace App\Services;
 
+use App\Models\ApiKey;
 use App\Models\Team;
 use Exception;
+use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class GeminiService
 {
@@ -25,7 +29,7 @@ class GeminiService
      */
     public function keys(): array
     {
-        $keys = \App\Models\ApiKey::query()
+        $keys = ApiKey::query()
             ->where('provider', 'gemini')
             ->where('is_active', true)
             ->orderBy('id')
@@ -36,7 +40,7 @@ class GeminiService
             ->all();
 
         if ($keys === []) {
-            $env = trim((string) config('services.gemini.api_key', ''));
+            $env = trim((string) (config('services.gemini.key') ?: config('services.gemini.api_key', '')));
             if ($env !== '') {
                 $keys = [$env];
             }
@@ -58,19 +62,19 @@ class GeminiService
 
     protected function keyIsDead(string $key): bool
     {
-        return \Illuminate\Support\Facades\Cache::has('gemini:dead:' . md5($key));
+        return Cache::has('gemini:dead:'.md5($key));
     }
 
     protected function markKeyDead(string $key, int $minutes = 30): void
     {
-        \Illuminate\Support\Facades\Cache::put('gemini:dead:' . md5($key), true, now()->addMinutes($minutes));
+        Cache::put('gemini:dead:'.md5($key), true, now()->addMinutes($minutes));
     }
 
     /**
      * Kirim generateContent dengan fallback antar-key:
      * 401/403 → key ditandai mati 30 menit; 429 → dilewati 10 menit; 5xx → coba key berikutnya.
      */
-    protected function postGenerate(array $payload, int $timeout = 120): \Illuminate\Http\Client\Response
+    protected function postGenerate(array $payload, int $timeout = 120): Response
     {
         $keys = $this->keys();
 
@@ -85,7 +89,7 @@ class GeminiService
                 continue;
             }
 
-            $endpoint = 'https://generativelanguage.googleapis.com/v1/models/gemini-3.1-flash-lite:generateContent?key=' . $key;
+            $endpoint = 'https://generativelanguage.googleapis.com/v1/models/gemini-3.1-flash-lite:generateContent?key='.$key;
             $response = Http::timeout($timeout)->post($endpoint, $payload);
             $lastResponse = $response;
 
@@ -128,9 +132,10 @@ class GeminiService
 
         // 3. Ekstrak nama file dari URL untuk mencari salinan di storage/app/public/videos/
         $filename = basename(parse_url($videoPathOrUrl, PHP_URL_PATH));
-        if ($filename && Storage::disk('public')->exists('videos/' . $filename)) {
+        if ($filename && Storage::disk('public')->exists('videos/'.$filename)) {
             Log::info("Gemini: Menggunakan salinan video lokal: videos/{$filename}");
-            return Storage::disk('public')->get('videos/' . $filename);
+
+            return Storage::disk('public')->get('videos/'.$filename);
         }
 
         // 4. Fallback jika URL masih aktif
@@ -143,13 +148,14 @@ class GeminiService
 
         // 5. Fallback terakhir: Ambil file video mp4 paling baru yang ada di folder storage lokal
         $files = Storage::disk('public')->files('videos');
-        if (!empty($files)) {
+        if (! empty($files)) {
             $latestLocalFile = end($files);
             Log::info("Gemini: Menggunakan video lokal terbaru di disk: {$latestLocalFile}");
+
             return Storage::disk('public')->get($latestLocalFile);
         }
 
-        throw new Exception("Berkas video tidak ditemukan di disk lokal maupun URL.");
+        throw new Exception('Berkas video tidak ditemukan di disk lokal maupun URL.');
     }
 
     /**
@@ -159,7 +165,7 @@ class GeminiService
     {
         $apiKey = $this->getApiKey($team);
         if (empty($apiKey)) {
-            throw new Exception("Gemini API Key tidak ditemukan.");
+            throw new Exception('Gemini API Key tidak ditemukan.');
         }
 
         // Ambil biner video asli
@@ -168,45 +174,45 @@ class GeminiService
 
         // PENGAMAN: Jika file < 10KB, dipastikan bukan file video
         if ($numBytes < 10000) {
-            throw new Exception("Berkas yang didapat BUKAN video valid (hanya {$numBytes} bytes). Konten terbaca: " . substr($contents, 0, 100));
+            throw new Exception("Berkas yang didapat BUKAN video valid (hanya {$numBytes} bytes). Konten terbaca: ".substr($contents, 0, 100));
         }
 
-        Log::info("Gemini Files API: Mengunggah video asli (" . number_format($numBytes / 1024 / 1024, 2) . " MB)...");
+        Log::info('Gemini Files API: Mengunggah video asli ('.number_format($numBytes / 1024 / 1024, 2).' MB)...');
 
         // Langkah A: Inisialisasi Resumable Upload
         $initRes = Http::withHeaders([
-            'X-Goog-Upload-Protocol'              => 'resumable',
-            'X-Goog-Upload-Command'               => 'start',
+            'X-Goog-Upload-Protocol' => 'resumable',
+            'X-Goog-Upload-Command' => 'start',
             'X-Goog-Upload-Header-Content-Length' => $numBytes,
-            'X-Goog-Upload-Header-Content-Type'   => 'video/mp4',
-            'Content-Type'                        => 'application/json',
+            'X-Goog-Upload-Header-Content-Type' => 'video/mp4',
+            'Content-Type' => 'application/json',
         ])->post("https://generativelanguage.googleapis.com/upload/v1beta/files?key={$apiKey}", [
             'file' => [
-                'display_name' => 'tiktok_video_' . time(),
+                'display_name' => 'tiktok_video_'.time(),
             ],
         ]);
 
         $uploadUrl = $initRes->header('x-goog-upload-url') ?? ($initRes->header('X-Goog-Upload-URL') ?? null);
         if (! $uploadUrl) {
-            throw new Exception("Gagal inisialisasi upload ke Gemini Files API: " . $initRes->body());
+            throw new Exception('Gagal inisialisasi upload ke Gemini Files API: '.$initRes->body());
         }
 
         // Langkah B: Kirim Data Biner Video
         $uploadRes = Http::timeout(300)->withHeaders([
-            'Content-Length'        => $numBytes,
-            'X-Goog-Upload-Offset'  => 0,
+            'Content-Length' => $numBytes,
+            'X-Goog-Upload-Offset' => 0,
             'X-Goog-Upload-Command' => 'upload, finalize',
         ])->withBody($contents, 'video/mp4')->post($uploadUrl);
 
         $fileData = $uploadRes->json('file');
         if (! $fileData || empty($fileData['uri'])) {
-            throw new Exception("Gagal menyelesaikan upload video ke Gemini: " . $uploadRes->body());
+            throw new Exception('Gagal menyelesaikan upload video ke Gemini: '.$uploadRes->body());
         }
 
         Log::info("Gemini Files API: Video asli berhasil diunggah. URI: {$fileData['uri']}. Menunggu state ACTIVE...");
 
         // Langkah C: Tunggu hingga state video menjadi ACTIVE (biasanya 4-10 detik)
-        $fileUri  = $fileData['uri'];
+        $fileUri = $fileData['uri'];
         $fileName = $fileData['name'];
 
         for ($i = 0; $i < 12; $i++) {
@@ -215,20 +221,21 @@ class GeminiService
             $state = $checkRes->json('state');
 
             if ($state === 'ACTIVE') {
-                Log::info("Gemini Files API: Video ACTIVE dan siap diproses AI!");
+                Log::info('Gemini Files API: Video ACTIVE dan siap diproses AI!');
+
                 return [
-                    'uri'  => $fileUri,
+                    'uri' => $fileUri,
                     'name' => $fileName,
                 ];
             }
 
             if ($state === 'FAILED') {
-                throw new Exception("Google gagal memproses video: " . $checkRes->body());
+                throw new Exception('Google gagal memproses video: '.$checkRes->body());
             }
         }
 
         return [
-            'uri'  => $fileUri,
+            'uri' => $fileUri,
             'name' => $fileName,
         ];
     }
@@ -248,7 +255,7 @@ class GeminiService
         $apiKey = $this->getApiKey($team);
 
         // Nilai fallback bawaan jika terjadi kendala
-        $fallbackTitle = \Illuminate\Support\Str::limit($originalCaption ?: 'Video Rekomendasi Hari Ini', 70);
+        $fallbackTitle = Str::limit($originalCaption ?: 'Video Rekomendasi Hari Ini', 70);
         $fallbackDescription = $originalCaption ?: 'Tonton video selengkapnya sampai habis! Jangan lupa like dan follow ✨';
 
         try {
@@ -256,15 +263,15 @@ class GeminiService
             $file = $this->uploadVideoToGemini($videoPathOrUrl, $team);
 
             // 2. Susun prompt khusus agar AI mengeluarkan Judul & Deskripsi terpisah
-            $promptText = "Tonton dan pahami video ini secara menyeluruh dari awal sampai akhir.\n" .
-                "Sebagai social media strategist papan atas untuk BrandPilot AI, tugasmu adalah meracik 2 hal:\n" .
-                "1. 'title': Judul video yang sangat memikat, click-worthy, dan membuat penasaran untuk YouTube & Facebook (maksimal 70-80 karakter, TANPA hashtag).\n" .
-                "2. 'description': Deskripsi lengkap yang memiliki hook pembuka visual, penjelasan konten menarik, Call-to-Action (CTA) rapi, dan hashtag relevan untuk Instagram, YouTube, dan Facebook.\n\n" .
-                ($originalCaption ? "Konteks caption asli kreator: \"{$originalCaption}\"\n" : "") .
-                ($customPrompt ? "Instruksi khusus brand: {$customPrompt}\n" : "") .
-                "Keluarkan HANYA format JSON valid dengan struktur: {\"title\": \"...\", \"description\": \"...\"}";
+            $promptText = "Tonton dan pahami video ini secara menyeluruh dari awal sampai akhir.\n".
+                "Sebagai social media strategist papan atas untuk BrandPilot AI, tugasmu adalah meracik 2 hal:\n".
+                "1. 'title': Judul video yang sangat memikat, click-worthy, dan membuat penasaran untuk YouTube & Facebook (maksimal 70-80 karakter, TANPA hashtag).\n".
+                "2. 'description': Deskripsi lengkap yang memiliki hook pembuka visual, penjelasan konten menarik, Call-to-Action (CTA) rapi, dan hashtag relevan untuk Instagram, YouTube, dan Facebook.\n\n".
+                ($originalCaption ? "Konteks caption asli kreator: \"{$originalCaption}\"\n" : '').
+                ($customPrompt ? "Instruksi khusus brand: {$customPrompt}\n" : '').
+                'Keluarkan HANYA format JSON valid dengan struktur: {"title": "...", "description": "..."}';
 
-            Log::info("Gemini Files API: Selesai upload. Mengirim prompt pemisahan Judul & Deskripsi...");
+            Log::info('Gemini Files API: Selesai upload. Mengirim prompt pemisahan Judul & Deskripsi...');
 
             // 3. Request ke Gemini dengan konfigurasi JSON output (otomatis fallback antar-key)
             $response = $this->postGenerate([
@@ -274,7 +281,7 @@ class GeminiService
                             [
                                 'file_data' => [
                                     'mime_type' => 'video/mp4',
-                                    'file_uri'  => $file['uri'],
+                                    'file_uri' => $file['uri'],
                                 ],
                             ],
                             [
@@ -288,7 +295,7 @@ class GeminiService
                 ],
             ]);
 
-            Log::info("Gemini AI meracik Judul & Deskripsi. Status HTTP: " . $response->status());
+            Log::info('Gemini AI meracik Judul & Deskripsi. Status HTTP: '.$response->status());
 
             if ($response->successful()) {
                 $rawJsonText = trim($response->json()['candidates'][0]['content']['parts'][0]['text'] ?? '');
@@ -297,26 +304,26 @@ class GeminiService
                 $cleanJson = preg_replace('/^```json\s*|\s*```$/i', '', $rawJsonText);
                 $result = json_decode($cleanJson, true);
 
-                if (is_array($result) && !empty($result['title']) && !empty($result['description'])) {
-                    Log::info("Gemini AI: Berhasil mengekstrak Judul & Deskripsi secara terpisah!", [
+                if (is_array($result) && ! empty($result['title']) && ! empty($result['description'])) {
+                    Log::info('Gemini AI: Berhasil mengekstrak Judul & Deskripsi secara terpisah!', [
                         'title' => $result['title'],
                     ]);
 
                     return [
-                        'title'       => trim($result['title']),
+                        'title' => trim($result['title']),
                         'description' => trim($result['description']),
                     ];
                 }
             }
 
-            Log::warning("Gemini AI tidak mengembalikan JSON valid, menggunakan fallback: " . $response->body());
+            Log::warning('Gemini AI tidak mengembalikan JSON valid, menggunakan fallback: '.$response->body());
 
         } catch (\Throwable $e) {
-            Log::error("Gemini Video Understanding Gagal: " . $e->getMessage());
+            Log::error('Gemini Video Understanding Gagal: '.$e->getMessage());
         }
 
         return [
-            'title'       => $fallbackTitle,
+            'title' => $fallbackTitle,
             'description' => $fallbackDescription,
         ];
     }
@@ -334,56 +341,57 @@ class GeminiService
         $apiKey = $this->getApiKey($team);
 
         if (empty($apiKey)) {
-            Log::error("Gemini Smart Reply Gagal: API Key tidak ditemukan!");
-            return "Terima kasih telah menghubungi kami. Kami akan segera merespons Anda.";
+            Log::error('Gemini Smart Reply Gagal: API Key tidak ditemukan!');
+
+            return 'Terima kasih telah menghubungi kami. Kami akan segera merespons Anda.';
         }
 
         // Susun prompt ramah, sopan, dan berorientasi penjualan (sales/support)
-        $prompt = "Kamu adalah customer support profesional, ramah, dan solutif untuk brand/toko ini.\n" .
-            "Tugasmu: Balas komentar atau pesan masuk dari calon pembeli berikut secara singkat, padat, sopan, dan hangat (maksimal 2-3 kalimat).\n\n" .
-            "Konteks / Informasi Toko (Knowledge Base):\n" .
-            ($knowledgeBase ?: "Kami siap melayani kebutuhan Anda dengan produk berkualitas dan pengiriman cepat ke seluruh Indonesia.") . "\n\n" .
-            "Pesan Masuk dari Customer: \"{$incomingMessage}\"\n\n" .
-            "Aturan Wajib:\n" .
-            "- Jawab langsung ke inti pertanyaan customer.\n" .
-            "- Gunakan nada bicara yang ramah dan bersahabat (misal: panggil 'Kak' atau 'Bunda').\n" .
+        $prompt = "Kamu adalah customer support profesional, ramah, dan solutif untuk brand/toko ini.\n".
+            "Tugasmu: Balas komentar atau pesan masuk dari calon pembeli berikut secara singkat, padat, sopan, dan hangat (maksimal 2-3 kalimat).\n\n".
+            "Konteks / Informasi Toko (Knowledge Base):\n".
+            ($knowledgeBase ?: 'Kami siap melayani kebutuhan Anda dengan produk berkualitas dan pengiriman cepat ke seluruh Indonesia.')."\n\n".
+            "Pesan Masuk dari Customer: \"{$incomingMessage}\"\n\n".
+            "Aturan Wajib:\n".
+            "- Jawab langsung ke inti pertanyaan customer.\n".
+            "- Gunakan nada bicara yang ramah dan bersahabat (misal: panggil 'Kak' atau 'Bunda').\n".
             "- Keluarkan HANYA teks balasan siap kirim tanpa tanda petik pembuka/penutup atau teks pengantar 'Balasan:'.";
 
         // Gunakan endpoint v1 dan model gemini-3.1-flash-lite yang sudah terbukti bekerja
         try {
-            Log::info("Gemini Smart Reply: Mengirim pesan ke AI Gemini...", ['pesan' => $incomingMessage]);
+            Log::info('Gemini Smart Reply: Mengirim pesan ke AI Gemini...', ['pesan' => $incomingMessage]);
 
             $response = $this->postGenerate([
                 'contents' => [
                     [
                         'parts' => [
-                            ['text' => $prompt]
-                        ]
-                    ]
-                ]
+                            ['text' => $prompt],
+                        ],
+                    ],
+                ],
             ], 30);
 
-            Log::info("Gemini Smart Reply HTTP Status: " . $response->status());
+            Log::info('Gemini Smart Reply HTTP Status: '.$response->status());
 
             if ($response->successful()) {
                 $reply = trim($response->json()['candidates'][0]['content']['parts'][0]['text'] ?? '');
 
-                if (!empty($reply)) {
+                if (! empty($reply)) {
                     Log::info("Gemini Smart Reply BERHASIL meracik jawaban: \"{$reply}\"");
+
                     return $reply;
                 }
             }
 
-            Log::error("Gemini Smart Reply Gagal dari Google (HTTP {$response->status()}): " . $response->body());
+            Log::error("Gemini Smart Reply Gagal dari Google (HTTP {$response->status()}): ".$response->body());
 
         } catch (\Throwable $e) {
-            Log::error("Exception Gemini Smart Reply: " . $e->getMessage());
+            Log::error('Exception Gemini Smart Reply: '.$e->getMessage());
         }
 
         // Fallback jika API benar-benar terputus
-        return "Halo Kak! Terima kasih banyak sudah bertanya. Pesan Kakak sudah kami terima dan akan segera kami bantu lebih lanjut ya! ✨";
+        return 'Halo Kak! Terima kasih banyak sudah bertanya. Pesan Kakak sudah kami terima dan akan segera kami bantu lebih lanjut ya! ✨';
     }
-
 
     // app/Services/GeminiService.php
 
@@ -399,7 +407,7 @@ class GeminiService
     ): array {
         $apiKey = $this->getApiKey($team);
 
-        $fallbackTitle = \Illuminate\Support\Str::limit($originalCaption ?: 'Koleksi Foto Terbaru', 70);
+        $fallbackTitle = Str::limit($originalCaption ?: 'Koleksi Foto Terbaru', 70);
         $fallbackDescription = $originalCaption ?: 'Geser untuk melihat koleksi lengkapnya! ✨ #KoleksiTerbaru';
 
         try {
@@ -419,8 +427,8 @@ class GeminiService
                     $imageParts[] = [
                         'inline_data' => [
                             'mime_type' => 'image/jpeg',
-                            'data'      => base64_encode($binary),
-                        ]
+                            'data' => base64_encode($binary),
+                        ],
                     ];
                 }
             }
@@ -430,18 +438,18 @@ class GeminiService
             }
 
             // 2. Susun prompt pemahaman carousel
-            $promptText = "Perhatikan dan amati seluruh rangkaian foto carousel ini dari slide awal sampai slide akhir secara berurutan.\n" .
-                "Sebagai social media strategist profesional untuk BrandPilot AI, tugasmu adalah meracik:\n" .
-                "1. 'title': Judul postingan carousel yang memancing rasa penasaran untuk swipe/geser foto (maksimal 70 karakter, TANPA hashtag).\n" .
-                "2. 'description': Deskripsi/caption lengkap yang merangkum cerita dari foto-foto ini, ajakan untuk swipe/cek bio (CTA), dan hashtag viral yang relevan.\n\n" .
-                ($originalCaption ? "Konteks caption asli kreator: \"{$originalCaption}\"\n" : "") .
-                ($customPrompt ? "Instruksi khusus brand: {$customPrompt}\n" : "") .
-                "Keluarkan HANYA format JSON valid: {\"title\": \"...\", \"description\": \"...\"}";
+            $promptText = "Perhatikan dan amati seluruh rangkaian foto carousel ini dari slide awal sampai slide akhir secara berurutan.\n".
+                "Sebagai social media strategist profesional untuk BrandPilot AI, tugasmu adalah meracik:\n".
+                "1. 'title': Judul postingan carousel yang memancing rasa penasaran untuk swipe/geser foto (maksimal 70 karakter, TANPA hashtag).\n".
+                "2. 'description': Deskripsi/caption lengkap yang merangkum cerita dari foto-foto ini, ajakan untuk swipe/cek bio (CTA), dan hashtag viral yang relevan.\n\n".
+                ($originalCaption ? "Konteks caption asli kreator: \"{$originalCaption}\"\n" : '').
+                ($customPrompt ? "Instruksi khusus brand: {$customPrompt}\n" : '').
+                'Keluarkan HANYA format JSON valid: {"title": "...", "description": "..."}';
 
             // Masukkan prompt teks ke bagian akhir array parts
             $imageParts[] = ['text' => $promptText];
 
-            Log::info("Gemini AI: Mengirim " . (count($imageParts) - 1) . " slide foto carousel ke Gemini Flash Lite...");
+            Log::info('Gemini AI: Mengirim '.(count($imageParts) - 1).' slide foto carousel ke Gemini Flash Lite...');
 
             $response = $this->postGenerate([
                 'contents' => [
@@ -459,24 +467,24 @@ class GeminiService
                 $cleanJson = preg_replace('/^```json\s*|\s*```$/i', '', $rawJsonText);
                 $result = json_decode($cleanJson, true);
 
-                if (is_array($result) && !empty($result['title']) && !empty($result['description'])) {
-                    Log::info("Gemini AI: Berhasil memahami gambar carousel & meracik caption!", [
+                if (is_array($result) && ! empty($result['title']) && ! empty($result['description'])) {
+                    Log::info('Gemini AI: Berhasil memahami gambar carousel & meracik caption!', [
                         'title' => $result['title'],
                     ]);
 
                     return [
-                        'title'       => trim($result['title']),
+                        'title' => trim($result['title']),
                         'description' => trim($result['description']),
                     ];
                 }
             }
 
         } catch (\Throwable $e) {
-            Log::error("Gemini Carousel Understanding Gagal: " . $e->getMessage());
+            Log::error('Gemini Carousel Understanding Gagal: '.$e->getMessage());
         }
 
         return [
-            'title'       => $fallbackTitle,
+            'title' => $fallbackTitle,
             'description' => $fallbackDescription,
         ];
     }

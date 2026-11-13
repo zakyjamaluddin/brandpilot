@@ -29,9 +29,9 @@ class ApiKey extends Model
     {
         return match ($this->provider) {
             'composio' => $this->hasOne(Team::class, 'composio_api_key_id'),
-            'gemini'   => $this->hasOne(Team::class, 'gemini_api_key_id'),
-            'apify'    => $this->hasOne(Team::class, 'apify_api_key_id'),
-            default    => $this->hasOne(Team::class, 'composio_api_key_id')->whereRaw('1 = 0'),
+            'gemini' => $this->hasOne(Team::class, 'gemini_api_key_id'),
+            'apify' => $this->hasOne(Team::class, 'apify_api_key_id'),
+            default => $this->hasOne(Team::class, 'composio_api_key_id')->whereRaw('1 = 0'),
         };
     }
 }

@@ -11,12 +11,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection;
-use Spatie\Permission\Traits\HasRoles; // Persiapan untuk Shield nanti
-use NotificationChannels\WebPush\HasPushSubscriptions;
+use NotificationChannels\WebPush\HasPushSubscriptions; // Persiapan untuk Shield nanti
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable implements FilamentUser, HasTenants
 {
-    use HasFactory, Notifiable, HasRoles;
+    use HasFactory, HasRoles, Notifiable;
     use HasPushSubscriptions;
 
     protected $fillable = [
@@ -71,5 +71,4 @@ class User extends Authenticatable implements FilamentUser, HasTenants
     {
         return $this->getKey() === 1 || $this->hasRole('super_admin');
     }
-
 }

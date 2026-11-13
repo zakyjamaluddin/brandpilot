@@ -5,6 +5,7 @@
 .env.production
 .phpactor.json
 .phpunit.result.cache
+/.claude
 /.codex
 /.cursor/
 /.idea
@@ -29,3 +30,4 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 /public/videos/*.mp4
+.codebase-memory/

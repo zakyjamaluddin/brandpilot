@@ -7,6 +7,7 @@ use App\Models\SocialIntegration;
 use App\Models\Team;
 use App\Services\ComposioService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 
 class TestYouTubeUpload extends Command
 {
@@ -21,6 +22,7 @@ class TestYouTubeUpload extends Command
         $team = Team::first();
         if (! $team) {
             $this->error('Belum ada Team di database.');
+
             return self::FAILURE;
         }
 
@@ -30,6 +32,7 @@ class TestYouTubeUpload extends Command
 
         if (! $ytIntegration) {
             $this->error('Integrasi YouTube belum terhubung untuk team ini!');
+
             return self::FAILURE;
         }
 
@@ -39,6 +42,7 @@ class TestYouTubeUpload extends Command
 
         if (! $post) {
             $this->error('Belum ada ContentPost di database.');
+
             return self::FAILURE;
         }
 
@@ -46,7 +50,7 @@ class TestYouTubeUpload extends Command
         $privacy = $this->option('privacy');
 
         $this->info("1. Menyiapkan sumber video Post #{$post->id}: {$post->video_url}");
-        $this->line("   Judul    : " . \Illuminate\Support\Str::limit($caption, 95));
+        $this->line('   Judul    : '.Str::limit($caption, 95));
         $this->line("   Privasi  : {$privacy}");
 
         try {
@@ -54,20 +58,22 @@ class TestYouTubeUpload extends Command
             // Aksi YOUTUBE_UPLOAD_VIDEO tidak dipakai: relay berkasnya merusak stream sehingga
             // YouTube menerima video lalu membuangnya ("tidak dapat memproses file").
             $res = $composio->uploadYoutubeVideo($team, $post->video_url, [
-                'title'         => \Illuminate\Support\Str::limit($caption, 95),
-                'description'   => $caption,
-                'tags'          => ['Shorts', 'Viral', 'BrandPilot'],
-                'categoryId'    => '22',
+                'title' => Str::limit($caption, 95),
+                'description' => $caption,
+                'tags' => ['Shorts', 'Viral', 'BrandPilot'],
+                'categoryId' => '22',
                 'privacyStatus' => $privacy,
-                'mimetype'      => 'video/mp4',
+                'mimetype' => 'video/mp4',
             ], $ytIntegration->composio_connection_id);
         } catch (\Throwable $e) {
-            $this->error('Error: ' . $e->getMessage());
+            $this->error('Error: '.$e->getMessage());
+
             return self::FAILURE;
         }
 
         if (! ($res['success'] ?? false)) {
-            $this->error('Unggah gagal: ' . ($res['error'] ?? 'unknown'));
+            $this->error('Unggah gagal: '.($res['error'] ?? 'unknown'));
+
             return self::FAILURE;
         }
 
@@ -81,20 +87,23 @@ class TestYouTubeUpload extends Command
         for ($i = 1; $i <= 12; $i++) {
             sleep(15);
             $status = $composio->youtubeProcessingStatus($team, $videoId, $ytIntegration->composio_connection_id);
-            $this->line("   [{$i}] status: " . ($status ?? 'HILANG (dibuang YouTube)'));
+            $this->line("   [{$i}] status: ".($status ?? 'HILANG (dibuang YouTube)'));
 
             if ($status === 'succeeded') {
                 $this->info("🎉 YOUTUBE SHORTS BERHASIL DIPROSES: https://youtu.be/{$videoId}");
+
                 return self::SUCCESS;
             }
 
             if ($status === null || $status === 'failed') {
                 $this->error('Video dibuang YouTube — jalur upload bermasalah.');
+
                 return self::FAILURE;
             }
         }
 
         $this->warn("Masih 'processing' setelah ~3 menit. Cek YouTube Studio untuk {$videoId}.");
+
         return self::SUCCESS;
     }
 }

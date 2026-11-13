@@ -40,7 +40,7 @@ class ComposioGmailWebhookController extends Controller
         $event = $payload['data'] ?? ($payload['payload'] ?? $payload);
 
         $subject = (string) ($event['subject'] ?? ($event['preview']['subject'] ?? ($payload['subject'] ?? '')));
-        $sender  = (string) ($event['sender'] ?? ($event['from'] ?? ($payload['from'] ?? '')));
+        $sender = (string) ($event['sender'] ?? ($event['from'] ?? ($payload['from'] ?? '')));
 
         $rawBody = $event['message_text']
             ?? ($event['payload']['body']['data'] ?? null)
@@ -63,8 +63,8 @@ class ComposioGmailWebhookController extends Controller
         }
 
         // 1. Validasi: Pastikan email berkaitan dengan pembelian Lynk.id
-        $isLynkEmail = str_contains(strtolower($sender), 'lynk.id') || 
-                       str_contains(strtolower($subject), 'berhasil') || 
+        $isLynkEmail = str_contains(strtolower($sender), 'lynk.id') ||
+                       str_contains(strtolower($subject), 'berhasil') ||
                        str_contains(strtolower($body), 'brandpilot') ||
                        str_contains(strtolower($body), 'pembayaran');
 
@@ -73,7 +73,7 @@ class ComposioGmailWebhookController extends Controller
         }
 
         // 1b. Hanya produk BrandPilot yang membuka akses — produk lain di Lynk.id diabaikan.
-        if (! str_contains(strtolower($subject . ' ' . $body), 'brandpilot')) {
+        if (! str_contains(strtolower($subject.' '.$body), 'brandpilot')) {
             Log::info('Email Lynk.id diabaikan: produk bukan BrandPilot.', ['subject' => $subject]);
 
             return response()->json(['status' => 'ignored', 'message' => 'Produk bukan BrandPilot.'], 200);
@@ -91,14 +91,14 @@ class ComposioGmailWebhookController extends Controller
         }
 
         // 3. Tentukan Durasi Paket (1, 6, atau 12 Bulan)
-        $durationMonths = $this->detectDurationMonths($subject . ' ' . $body);
+        $durationMonths = $this->detectDurationMonths($subject.' '.$body);
         Log::info("Transaksi Lynk.id valid: Email [{$buyerEmail}], Durasi [{$durationMonths} Bulan]");
 
         // Idempotensi: klaim message_id setelah email lolos validasi, supaya satu email
         // hanya diproses sekali (retry Composio tidak menambah masa aktif lagi).
         $messageId = (string) ($payload['data']['message_id'] ?? ($payload['id'] ?? ''));
 
-        if ($messageId !== '' && ! Cache::add('composio:email:' . $messageId, true, now()->addDays(30))) {
+        if ($messageId !== '' && ! Cache::add('composio:email:'.$messageId, true, now()->addDays(30))) {
             Log::info("Email {$messageId} sudah pernah diproses, dilewati.");
 
             return response()->json(['status' => 'duplicate', 'message' => 'Email ini sudah diproses.'], 200);
@@ -120,18 +120,18 @@ class ComposioGmailWebhookController extends Controller
 
             // B. Buat Record User
             $user = User::create([
-                'name'     => $cleanName,
-                'email'    => $buyerEmail,
+                'name' => $cleanName,
+                'email' => $buyerEmail,
                 'password' => Hash::make($plainPassword),
             ]);
 
             // C. Buat Record Team (Tenant)
-            $teamSlug = Str::slug($cleanName) . '-' . Str::lower(Str::random(4));
+            $teamSlug = Str::slug($cleanName).'-'.Str::lower(Str::random(4));
             $team = Team::create([
-                'name'                    => $cleanName . ' Brand',
-                'slug'                    => $teamSlug,
-                'customer_email'          => $buyerEmail,
-                'subscription_status'     => 'active',
+                'name' => $cleanName.' Brand',
+                'slug' => $teamSlug,
+                'customer_email' => $buyerEmail,
+                'subscription_status' => 'active',
                 'subscription_expires_at' => now()->addMonths($durationMonths),
             ]);
 
@@ -140,23 +140,23 @@ class ComposioGmailWebhookController extends Controller
 
             // E. Buat Default Setting untuk Tenant
             TenantSetting::create([
-                'team_id'              => $team->id,
-                'schedule_mode'        => 'dynamic_delay',
+                'team_id' => $team->id,
+                'schedule_mode' => 'dynamic_delay',
                 'auto_caption_enabled' => true,
-                'auto_reply_enabled'   => true,
+                'auto_reply_enabled' => true,
             ]);
 
             // F. Pasang Role Super Admin (Shield)
             try {
                 setPermissionsTeamId($team->id);
                 $role = Role::firstOrCreate([
-                    'name'       => 'super_admin',
+                    'name' => 'super_admin',
                     'guard_name' => 'web',
-                    'team_id'    => $team->id,
+                    'team_id' => $team->id,
                 ]);
                 $user->assignRole($role);
             } catch (\Throwable $e) {
-                Log::warning("Shield role assign warning: " . $e->getMessage());
+                Log::warning('Shield role assign warning: '.$e->getMessage());
             }
 
             // G. Kirim Email Selamat Datang & Kredensial Login
@@ -164,12 +164,12 @@ class ComposioGmailWebhookController extends Controller
                 Mail::to($buyerEmail)->send(new WelcomeNewSubscriberMail($user, $team, $plainPassword, $durationMonths));
                 Log::info("Email selamat datang & password terkirim ke [{$buyerEmail}]");
             } catch (\Throwable $e) {
-                Log::error("Gagal mengirim email welcome: " . $e->getMessage());
+                Log::error('Gagal mengirim email welcome: '.$e->getMessage());
             }
 
             return response()->json([
-                'status'  => 'success',
-                'type'    => 'new_user_created',
+                'status' => 'success',
+                'type' => 'new_user_created',
                 'user_id' => $user->id,
                 'team_id' => $team->id,
                 'expires' => $team->subscription_expires_at->toDateTimeString(),
@@ -195,7 +195,7 @@ class ComposioGmailWebhookController extends Controller
             $newExpiresAt = (clone $baseDate)->addMonths($durationMonths);
 
             $team->update([
-                'subscription_status'     => 'active',
+                'subscription_status' => 'active',
                 'subscription_expires_at' => $newExpiresAt,
             ]);
 
@@ -204,12 +204,12 @@ class ComposioGmailWebhookController extends Controller
                 Mail::to($buyerEmail)->send(new SubscriptionRenewedMail($user, $team, $durationMonths));
                 Log::info("Email perpanjangan terkirim ke [{$buyerEmail}]");
             } catch (\Throwable $e) {
-                Log::error("Gagal mengirim email perpanjangan: " . $e->getMessage());
+                Log::error('Gagal mengirim email perpanjangan: '.$e->getMessage());
             }
 
             return response()->json([
-                'status'  => 'success',
-                'type'    => 'subscription_renewed',
+                'status' => 'success',
+                'type' => 'subscription_renewed',
                 'team_id' => $team->id,
                 'expires' => $newExpiresAt->toDateTimeString(),
             ], 200);

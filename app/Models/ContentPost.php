@@ -30,7 +30,7 @@ class ContentPost extends Model
 
     protected $casts = [
         'platform_post_ids' => 'array',
-        'media_gallery'     => 'array', 
+        'media_gallery' => 'array',
         'scheduled_at' => 'datetime',
         'published_at' => 'datetime',
     ];

@@ -15,8 +15,11 @@ use Illuminate\Validation\Rules\Password;
 class Profile extends Page
 {
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-user-circle';
+
     protected static ?string $navigationLabel = 'Profil Saya';
+
     protected static ?string $title = 'Pengaturan Akun & Brand';
+
     protected string $view = 'filament.pages.profile';
 
     // Sembunyikan dari sidebar agar menu samping tetap rapi
@@ -31,12 +34,12 @@ class Profile extends Page
 
         $this->form->fill([
             // Data Brand / Tenant
-            'brand_name'    => $team?->name,
+            'brand_name' => $team?->name,
             'tiktok_handle' => $team?->tiktok_handle,
 
             // Data User
-            'name'          => $user->name,
-            'email'         => $user->email,
+            'name' => $user->name,
+            'email' => $user->email,
         ]);
     }
 
@@ -100,7 +103,7 @@ class Profile extends Page
         // 1. Simpan Nama Brand & TikTok Handle
         if ($team) {
             $team->update([
-                'name'          => $state['brand_name'],
+                'name' => $state['brand_name'],
                 'tiktok_handle' => $state['tiktok_handle'],
             ]);
         }
@@ -117,10 +120,10 @@ class Profile extends Page
 
         // Refresh data form
         $this->form->fill([
-            'brand_name'    => $team?->name,
+            'brand_name' => $team?->name,
             'tiktok_handle' => $team?->tiktok_handle,
-            'name'          => $user->name,
-            'email'         => $user->email,
+            'name' => $user->name,
+            'email' => $user->email,
         ]);
 
         Notification::make()

@@ -7,6 +7,7 @@ use App\Models\ContentPost;
 use App\Services\GeminiService;
 use Carbon\Carbon;
 use Filament\Facades\Filament;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
 
@@ -18,8 +19,8 @@ class CreateContentPost extends CreateRecord
     {
         $team = Filament::getTenant();
 
-        if (app(\App\Services\GeminiService::class)->keys() === []) {
-            \Filament\Notifications\Notification::make()
+        if (app(GeminiService::class)->keys() === []) {
+            Notification::make()
                 ->title('Gemini API Key belum tersedia')
                 ->body('Tambahkan minimal satu Gemini API Key di menu API Keys (provider: Gemini). Key ini dipakai bersama semua workspace.')
                 ->danger()
@@ -47,7 +48,7 @@ class CreateContentPost extends CreateRecord
             foreach ($videoFiles as $filePath) {
                 // Tentukan waktu jadwal berdasarkan jam statis
                 $scheduledTime = $currentDate->copy()->setTimeFromTimeString($hours[$hourIndex]);
-                
+
                 // Jika jam hari ini sudah lewat, jadwalkan besoknya
                 if ($scheduledTime->isPast()) {
                     $scheduledTime->addDay();
@@ -63,13 +64,13 @@ class CreateContentPost extends CreateRecord
                 }
 
                 $record = ContentPost::create([
-                    'team_id'              => $team->id,
-                    'video_url'            => asset('storage/' . $filePath),
-                    'caption_type'         => $data['caption_type'] ?? 'manual',
-                    'original_caption'     => $caption,
+                    'team_id' => $team->id,
+                    'video_url' => asset('storage/'.$filePath),
+                    'caption_type' => $data['caption_type'] ?? 'manual',
+                    'original_caption' => $caption,
                     'ai_generated_caption' => ($data['caption_type'] === 'gemini_ai') ? $caption : null,
-                    'status'               => 'pending',
-                    'scheduled_at'         => $scheduledTime,
+                    'status' => 'pending',
+                    'scheduled_at' => $scheduledTime,
                 ]);
 
                 if (! $firstCreatedRecord) {
@@ -84,7 +85,7 @@ class CreateContentPost extends CreateRecord
                 }
             }
 
-            return $firstCreatedRecord ?? new ContentPost();
+            return $firstCreatedRecord ?? new ContentPost;
         }
 
         // MODE 2: INDIVIDUAL UPLOAD
@@ -99,13 +100,13 @@ class CreateContentPost extends CreateRecord
         $videoPath = $data['single_video_file'] ?? '';
 
         return ContentPost::create([
-            'team_id'              => $team->id,
-            'video_url'            => asset('storage/' . $videoPath),
-            'caption_type'         => $data['caption_type'] ?? 'manual',
-            'original_caption'     => $caption,
+            'team_id' => $team->id,
+            'video_url' => asset('storage/'.$videoPath),
+            'caption_type' => $data['caption_type'] ?? 'manual',
+            'original_caption' => $caption,
             'ai_generated_caption' => ($data['caption_type'] === 'gemini_ai') ? $caption : null,
-            'status'               => 'pending',
-            'scheduled_at'         => $data['scheduled_at'] ?? now(),
+            'status' => 'pending',
+            'scheduled_at' => $data['scheduled_at'] ?? now(),
         ]);
     }
 }

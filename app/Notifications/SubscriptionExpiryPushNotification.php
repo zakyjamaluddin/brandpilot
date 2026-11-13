@@ -26,11 +26,11 @@ class SubscriptionExpiryPushNotification extends Notification
     public function toWebPush($notifiable, $notification)
     {
         if ($this->isExpired) {
-            $title = "🚨 Masa Langganan Habis!";
-            $body = "Masa aktif BrandPilot AI Anda telah berakhir. Sistem autopilot dinonaktifkan sementara.";
+            $title = '🚨 Masa Langganan Habis!';
+            $body = 'Masa aktif BrandPilot AI Anda telah berakhir. Sistem autopilot dinonaktifkan sementara.';
         } elseif ($this->daysLeft === 1) {
-            $title = "⚠️ Besok Hari Terakhir!";
-            $body = "Masa aktif BrandPilot Anda berakhir besok. Perpanjang agar jadwal posting tidak berhenti.";
+            $title = '⚠️ Besok Hari Terakhir!';
+            $body = 'Masa aktif BrandPilot Anda berakhir besok. Perpanjang agar jadwal posting tidak berhenti.';
         } else {
             $title = "⚠️ Pengingat Langganan ({$this->daysLeft} Hari Lagi)";
             $body = "Masa aktif BrandPilot Anda tersisa {$this->daysLeft} hari lagi. Perpanjang sekarang via Lynk.id.";
