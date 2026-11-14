@@ -7,6 +7,25 @@
     <meta name="description" content="@yield('description', 'BrandPilot AI — autopilot sindikasi konten TikTok ke Instagram, Facebook, dan YouTube.')">
     <meta name="theme-color" content="#5B0E2D">
 
+    <!-- Open Graph / Facebook / WhatsApp -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ url()->current() }}">
+    <meta property="og:title" content="@yield('title', 'BrandPilot AI')">
+    <meta property="og:description" content="@yield('description', 'BrandPilot AI — autopilot sindikasi konten TikTok ke Instagram, Facebook, dan YouTube.')">
+    <meta property="og:image" content="{{ asset('landing.jpg') }}">
+    <meta property="og:image:secure_url" content="{{ asset('landing.jpg') }}">
+    <meta property="og:image:type" content="image/jpeg">
+    <meta property="og:image:width" content="1672">
+    <meta property="og:image:height" content="941">
+    <meta property="og:image:alt" content="BrandPilot AI">
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="{{ url()->current() }}">
+    <meta name="twitter:title" content="@yield('title', 'BrandPilot AI')">
+    <meta name="twitter:description" content="@yield('description', 'BrandPilot AI — autopilot sindikasi konten TikTok ke Instagram, Facebook, dan YouTube.')">
+    <meta name="twitter:image" content="{{ asset('landing.jpg') }}">
+
     <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32.png') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16.png') }}">

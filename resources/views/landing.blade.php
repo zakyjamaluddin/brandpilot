@@ -6,6 +6,25 @@
     <title>BrandPilot AI — Autopilot Sindikasi Konten TikTok ke Semua Sosmed</title>
     <meta name="description" content="Fokus bikin konten di TikTok. Biarkan BrandPilot AI yang merepost otomatis ke Instagram Reels, Facebook, dan YouTube Shorts dengan caption cerdas AI.">
     <meta name="theme-color" content="#5B0E2D">
+
+    <!-- Open Graph / Facebook / WhatsApp -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ url('/') }}">
+    <meta property="og:title" content="BrandPilot AI — Autopilot Sindikasi Konten TikTok ke Semua Sosmed">
+    <meta property="og:description" content="Fokus bikin konten di TikTok. Biarkan BrandPilot AI yang merepost otomatis ke Instagram Reels, Facebook, dan YouTube Shorts dengan caption cerdas AI.">
+    <meta property="og:image" content="{{ asset('landing.jpg') }}">
+    <meta property="og:image:secure_url" content="{{ asset('landing.jpg') }}">
+    <meta property="og:image:type" content="image/jpeg">
+    <meta property="og:image:width" content="1672">
+    <meta property="og:image:height" content="941">
+    <meta property="og:image:alt" content="BrandPilot AI — Dashboard Autopilot Sindikasi Konten TikTok">
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="{{ url('/') }}">
+    <meta name="twitter:title" content="BrandPilot AI — Autopilot Sindikasi Konten TikTok ke Semua Sosmed">
+    <meta name="twitter:description" content="Fokus bikin konten di TikTok. Biarkan BrandPilot AI yang merepost otomatis ke Instagram Reels, Facebook, dan YouTube Shorts dengan caption cerdas AI.">
+    <meta name="twitter:image" content="{{ asset('landing.jpg') }}">
     <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32.png') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16.png') }}">
