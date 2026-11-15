@@ -22,48 +22,63 @@ class ComposioService
     /**
      * 1. Mengambil atau Membuat Auth Config ID untuk Toolkit (facebook, instagram, youtube)
      */
-    public function getAuthConfigId(Team $team, string $toolkitSlug): ?string
+    public function getAuthConfigId(Team $team, string $toolkitSlug): string
     {
-        try {
-            $slug = strtolower($toolkitSlug);
-            $client = $this->client($team);
+        $slug = strtolower($toolkitSlug);
+        $client = $this->client($team);
 
+        try {
             // Cek apakah auth_config sudah pernah dibuat sebelumnya
             $response = $client->get('/auth_configs', [
                 'toolkit_slug' => $slug,
             ]);
+        } catch (Throwable $e) {
+            Log::error("Koneksi ke Composio gagal saat cek auth_config ({$toolkitSlug}) Tenant [{$team->slug}]: ".$e->getMessage());
+            throw new Exception("Gagal menghubungi server Composio: {$e->getMessage()}. Periksa koneksi internet / firewall / SSL hosting Anda.");
+        }
 
-            if ($response->successful()) {
-                $items = $response->json('items') ?? ($response->json('data') ?? []);
-                if (! empty($items) && isset($items[0]['id'])) {
-                    return $items[0]['id'];
-                }
+        if ($response->successful()) {
+            $items = $response->json('items') ?? ($response->json('data') ?? []);
+            if (! empty($items) && isset($items[0]['id'])) {
+                return $items[0]['id'];
             }
+        } elseif ($response->status() === 401 || $response->status() === 403) {
+            $errMessage = $response->json('error.message') ?? ($response->json('message') ?? 'API Key Composio tidak valid atau ditolak.');
+            Log::error("Composio API Auth Error ({$response->status()}) [{$slug}]: {$errMessage}");
+            throw new Exception("Composio API Error ({$response->status()}): {$errMessage}. Periksa kembali Composio API Key di menu API Keys.");
+        } else {
+            Log::warning("Composio GET /auth_configs returned {$response->status()}: ".$response->body());
+        }
 
-            // Jika belum ada, buat baru menggunakan managed auth Composio
+        // Jika belum ada, buat baru menggunakan managed auth Composio
+        try {
             $createRes = $client->post('/auth_configs', [
                 'toolkit' => [
                     'slug' => $slug,
                 ],
                 'auth_config' => [
                     'type' => 'use_composio_managed_auth',
+                    'name' => ucfirst($slug).' Managed Auth',
                 ],
             ]);
-
-            if ($createRes->successful()) {
-                $created = $createRes->json();
-
-                return $created['auth_config']['id'] ?? ($created['id'] ?? null);
-            }
-
-            Log::error("Gagal membuat auth_config Composio [{$slug}]: ".$createRes->body());
-
-            return null;
         } catch (Throwable $e) {
-            Log::error("Exception getAuthConfigId ({$toolkitSlug}) untuk Tenant [{$team->slug}]: ".$e->getMessage());
-
-            return null;
+            Log::error("Koneksi ke Composio gagal saat create auth_config ({$toolkitSlug}) Tenant [{$team->slug}]: ".$e->getMessage());
+            throw new Exception("Gagal membuat auth_config Composio: {$e->getMessage()}");
         }
+
+        if ($createRes->successful()) {
+            $created = $createRes->json();
+            $id = $created['auth_config']['id'] ?? ($created['id'] ?? null);
+
+            if (! empty($id)) {
+                return $id;
+            }
+        }
+
+        $errorDetail = $createRes->json('error.message') ?? ($createRes->json('message') ?? $createRes->body());
+        Log::error("Gagal membuat auth_config Composio [{$slug}]: HTTP {$createRes->status()} - ".$errorDetail);
+
+        throw new Exception("Gagal membuat Auth Config Composio untuk {$slug} (HTTP {$createRes->status()}): {$errorDetail}");
     }
 
     /**
@@ -75,9 +90,6 @@ class ComposioService
         $userId = "brandpilot_tenant_{$team->id}_{$team->slug}";
 
         $authConfigId = $this->getAuthConfigId($team, $toolkit);
-        if (! $authConfigId) {
-            throw new Exception("Gagal mendapatkan Auth Config ID dari Composio untuk platform {$appName}.");
-        }
 
         // URL tujuan callback setelah user menyelesaikan otorisasi di Composio
         $callbackUrl = route('composio.callback', ['team' => $team->id, 'platform' => $appName]);
@@ -97,8 +109,9 @@ class ComposioService
             }
         }
 
+        $errorMsg = $response->json('error.message') ?? ($response->json('message') ?? $response->body());
         Log::error("Composio /connected_accounts/link gagal untuk [{$appName}]: ".$response->body());
-        throw new Exception('Gagal mengambil link OAuth dari Composio: '.$response->body());
+        throw new Exception('Gagal mengambil link OAuth dari Composio: '.$errorMsg);
     }
 
     /**
@@ -220,7 +233,11 @@ class ComposioService
             ->value('api_key'));
 
         if ($key === '') {
-            throw new Exception('Composio API Key belum tersedia. Tambahkan di menu API Keys (provider: Composio).');
+            $key = trim((string) config('services.composio.key'));
+        }
+
+        if ($key === '') {
+            throw new Exception('Composio API Key belum tersedia. Tambahkan di menu API Keys (provider: Composio) atau konfigurasi COMPOSIO_API_KEY di file .env.');
         }
 
         return $key;

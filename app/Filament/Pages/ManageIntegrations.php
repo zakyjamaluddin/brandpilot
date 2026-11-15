@@ -33,7 +33,7 @@ class ManageIntegrations extends Page
         $this->hasComposioKey = ApiKey::query()
             ->where('provider', 'composio')
             ->where('is_active', true)
-            ->exists();
+            ->exists() || ! empty(config('services.composio.key'));
 
         // Tanpa Composio API Key milik tenant, jangan panggil Composio sama sekali
         // dan jangan tampilkan status "terhubung" dari sisa data lama.
@@ -48,8 +48,8 @@ class ManageIntegrations extends Page
             }
 
             Notification::make()
-                ->title('Composio API Key belum di-assign')
-                ->body("Workspace \"{$team->name}\" belum memiliki Composio API Key. Assign dulu di menu API Keys → Teams, lalu buka ulang halaman ini.")
+                ->title('Composio API Key belum tersedia')
+                ->body('Tambahkan Composio API Key di menu API Keys (provider: Composio) atau isi COMPOSIO_API_KEY di file .env sebelum menghubungkan platform.')
                 ->danger()
                 ->persistent()
                 ->send();
@@ -84,10 +84,13 @@ class ManageIntegrations extends Page
     {
         $team = Filament::getTenant();
 
-        if (! ApiKey::query()->where('provider', 'composio')->where('is_active', true)->exists()) {
+        $hasKey = ApiKey::query()->where('provider', 'composio')->where('is_active', true)->exists()
+            || ! empty(config('services.composio.key'));
+
+        if (! $hasKey) {
             Notification::make()
                 ->title('Composio API Key belum tersedia')
-                ->body('Tambahkan Composio API Key di menu API Keys (provider: Composio) sebelum menghubungkan platform.')
+                ->body('Tambahkan Composio API Key di menu API Keys (provider: Composio) atau isi COMPOSIO_API_KEY di file .env sebelum menghubungkan platform.')
                 ->danger()
                 ->persistent()
                 ->send();
