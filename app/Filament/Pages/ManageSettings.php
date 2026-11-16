@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Models\TenantSetting;
+use App\Services\TikTok\TikWmChecker;
 use BackedEnum;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Checkbox;
@@ -98,9 +99,13 @@ class ManageSettings extends Page
         $team = Filament::getTenant();
         $state = $this->form->getState();
 
+        $rawUrl = trim($state['tiktok_profile_url'] ?? '');
+        $extractedHandle = (new TikWmChecker)->extractUsername($rawUrl);
+
         // Simpan data TikTok ke Team
         $team->update([
-            'tiktok_profile_url' => $state['tiktok_profile_url'] ?? null,
+            'tiktok_profile_url' => $rawUrl ?: null,
+            'tiktok_handle' => $extractedHandle ?: $team->tiktok_handle,
             'tiktok_ownership_confirmed' => (bool) ($state['tiktok_ownership_confirmed'] ?? false),
         ]);
 

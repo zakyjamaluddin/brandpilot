@@ -135,7 +135,7 @@ class PollTikTokPosts extends Command
                 // 8. Eksekusi Posting Jika Jadwalnya Sekarang
                 if ($scheduledAt->isPast() || $scheduledAt->diffInMinutes(now()) <= 1) {
                     $this->info('Mendistribusikan postingan ke FB, IG, dan YouTube...');
-                    PublishContentJob::dispatch($post);
+                    dispatch_sync(new PublishContentJob($post));
                 } else {
                     $this->info("Postingan dijadwalkan tayang pada: {$scheduledAt->toDateTimeString()}");
                 }

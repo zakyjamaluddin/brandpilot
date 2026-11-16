@@ -48,6 +48,10 @@ return [
         'actor' => 'clockworks~tiktok-scraper',
     ],
 
+    'cloudflare_worker' => [
+        'tiktok_url' => env('CLOUDFLARE_WORKER_TIKTOK_URL', 'https://brandpilot-tiktok-scraper.zakyjamaluddin1812.workers.dev'),
+    ],
+
     'webpush' => [
         'public_key' => env('VAPID_PUBLIC_KEY'),
         'private_key' => env('VAPID_PRIVATE_KEY'),

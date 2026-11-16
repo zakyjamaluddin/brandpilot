@@ -95,17 +95,11 @@ class ApifyChecker
         }
 
         try {
-            $items = $this->fetchItems($token, $profileUrl, 1);
+            $items = $this->fetchItems($token, $profileUrl, 5);
             $this->incrementCallCount();
 
             if (empty($items)) {
                 return null;
-            }
-
-            if ($this->isPinned($items[0])) {
-                Log::info('ApifyChecker: Post teratas pinned, mengambil 5 item berikutnya.');
-                $items = $this->fetchItems($token, $profileUrl, 5);
-                $this->incrementCallCount();
             }
 
             foreach ($items as $item) {
@@ -121,13 +115,27 @@ class ApifyChecker
                 $videoUrl = $item['videoUrl'] ?? ($item['webVideoUrl'] ?? '');
                 $caption = $item['text'] ?? ($item['desc'] ?? '');
 
+                $isCarousel = ! empty($item['isSlideshow'])
+                    || ! empty($item['images'])
+                    || ($item['mediaType'] ?? '') === 'image';
+
+                $images = $item['images'] ?? [];
+                if (empty($images) && ! empty($item['slideshowImageLinks']) && is_array($item['slideshowImageLinks'])) {
+                    foreach ($item['slideshowImageLinks'] as $slide) {
+                        $imgUrl = $slide['downloadLink'] ?? ($slide['tiktokLink'] ?? null);
+                        if (! empty($imgUrl)) {
+                            $images[] = $imgUrl;
+                        }
+                    }
+                }
+
                 return [
                     'post_id' => $id,
                     'caption' => (string) $caption,
                     'video_url' => (string) $videoUrl,
                     'direct_download_url' => $item['videoDownloadUrl'] ?? null,
-                    'is_carousel' => ! empty($item['images']) || ($item['mediaType'] ?? '') === 'image',
-                    'images' => $item['images'] ?? [],
+                    'is_carousel' => $isCarousel,
+                    'images' => is_array($images) ? $images : [],
                     'posted_at' => isset($item['createTimeISO']) ? Carbon::parse($item['createTimeISO']) : now(),
                     'source' => 'apify',
                 ];

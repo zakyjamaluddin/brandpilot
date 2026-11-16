@@ -29,7 +29,7 @@ class EditTeamProfile extends EditTenantProfile
                         TextInput::make('tiktok_handle')
                             ->label('Username TikTok (@username)')
                             ->placeholder('fashionglow.id')
-                            ->helperText('Username TikTok utama untuk brand ini.'),
+                            ->helperText('Username TikTok utama untuk brand ini. URL profil pemantauan akan otomatis diperbarui.'),
 
                         TextInput::make('customer_email')
                             ->label('Email Penagihan (Billing)')
@@ -37,5 +37,16 @@ class EditTeamProfile extends EditTenantProfile
                             ->helperText('Email yang terhubung dengan transaksi Lynk.id.'),
                     ]),
             ]);
+    }
+
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        if (! empty($data['tiktok_handle'])) {
+            $handle = ltrim(trim($data['tiktok_handle']), '@');
+            $data['tiktok_handle'] = $handle;
+            $data['tiktok_profile_url'] = "https://www.tiktok.com/@{$handle}";
+        }
+
+        return $data;
     }
 }
