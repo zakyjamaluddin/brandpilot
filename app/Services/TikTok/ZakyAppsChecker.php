@@ -37,7 +37,7 @@ class ZakyAppsChecker
         }
 
         try {
-            $response = Http::timeout(10)
+            $response = Http::timeout(60)
                 ->withHeaders([
                     'Accept' => 'application/json',
                 ])
@@ -79,6 +79,15 @@ class ZakyAppsChecker
 
                 $isCarousel = ($item['type'] ?? '') === 'carousel' || ! empty($item['images']) || ! empty($item['slides']);
 
+                $postedAt = now();
+                if (isset($item['posted_at'])) {
+                    $postedAt = is_numeric($item['posted_at'])
+                        ? Carbon::createFromTimestamp($item['posted_at'])
+                        : Carbon::parse($item['posted_at']);
+                } elseif (isset($item['create_time'])) {
+                    $postedAt = Carbon::parse($item['create_time']);
+                }
+
                 return [
                     'post_id' => $postId,
                     'caption' => (string) ($item['caption'] ?? $item['title'] ?? ''),
@@ -86,7 +95,7 @@ class ZakyAppsChecker
                     'direct_download_url' => $item['download_url'] ?? $item['download']['url'] ?? null,
                     'is_carousel' => $isCarousel,
                     'images' => $item['slides'] ?? ($item['images'] ?? []),
-                    'posted_at' => isset($item['create_time']) ? Carbon::parse($item['create_time']) : now(),
+                    'posted_at' => $postedAt,
                     'source' => 'zakyapps',
                 ];
             }
