@@ -30,7 +30,7 @@ class ZakyAppsChecker
      */
     public function getLatestNonPinnedPost(string $profileUrl): ?array
     {
-        $cleanUsername = ltrim((new TikWmChecker)->extractUsername($profileUrl) ?? '', '@');
+        $cleanUsername = ltrim($this->extractUsername($profileUrl) ?? '', '@');
 
         if ($cleanUsername === '') {
             return null;
@@ -106,5 +106,27 @@ class ZakyAppsChecker
 
             return null;
         }
+    }
+
+    /**
+     * Ekstrak username TikTok dari URL atau string input.
+     */
+    public function extractUsername(string $input): ?string
+    {
+        $trimmed = trim($input);
+
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if (! str_contains($trimmed, 'tiktok.com')) {
+            return ltrim($trimmed, '@');
+        }
+
+        if (preg_match('/@([a-zA-Z0-9_.-]+)/', $trimmed, $matches)) {
+            return $matches[1];
+        }
+
+        return null;
     }
 }
