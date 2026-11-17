@@ -145,9 +145,9 @@ class PollTikTokPosts extends Command
                 $this->error('Terjadi galat: '.$e->getMessage());
             }
 
-            // Jeda 1 detik antar tenant agar tidak membuat burst spike ke server
+            // Jeda 2 detik antar tenant agar tidak membuat burst spike ke server
             if ($index < $totalTeams - 1) {
-                sleep(1);
+                sleep(2);
             }
         }
 
