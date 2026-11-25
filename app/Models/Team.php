@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Str;
 
 class Team extends Model
 {
@@ -28,7 +29,30 @@ class Team extends Model
         'subscription_status',
         'subscription_expires_at',
         'customer_email',
+        'invitation_code',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Team $team) {
+            if (empty($team->invitation_code)) {
+                $team->invitation_code = Str::random(32);
+            }
+        });
+    }
+
+    public function getInvitationUrlAttribute(): string
+    {
+        return url('/invitations/'.$this->invitation_code);
+    }
+
+    public function regenerateInvitationCode(): string
+    {
+        $this->invitation_code = Str::random(32);
+        $this->save();
+
+        return $this->invitation_code;
+    }
 
     // Tambahkan relasi ini di dalam class Team:
     public function composioKey()

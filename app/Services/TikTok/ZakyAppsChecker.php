@@ -93,6 +93,7 @@ class ZakyAppsChecker
                     'caption' => (string) ($item['caption'] ?? $item['title'] ?? ''),
                     'video_url' => $item['url'] ?? $item['video_url'] ?? "https://www.tiktok.com/@{$cleanUsername}/video/{$postId}",
                     'direct_download_url' => $item['download_url'] ?? $item['download']['url'] ?? null,
+                    'cover_url' => $item['cover_url'] ?? ($item['cover'] ?? ($item['thumbnail'] ?? ($item['origin_cover'] ?? null))),
                     'is_carousel' => $isCarousel,
                     'images' => $item['slides'] ?? ($item['images'] ?? []),
                     'posted_at' => $postedAt,

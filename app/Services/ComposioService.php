@@ -316,8 +316,13 @@ class ComposioService
     /**
      * Helper Instagram Reel dengan waktu tunggu rendering yang aman
      */
-    public function postInstagramReel(Team $team, string $videoUrl, string $caption, ?string $connectedAccountId = null): array
-    {
+    public function postInstagramReel(
+        Team $team,
+        string $videoUrl,
+        string $caption,
+        ?string $connectedAccountId = null,
+        ?string $coverUrl = null
+    ): array {
         try {
             // 1. Ambil ig_user_id
             $profileRes = $this->executeAction($team, 'INSTAGRAM_GET_USER_INFO', [], $connectedAccountId);
@@ -334,32 +339,121 @@ class ComposioService
 
             Log::info("Instagram: Menggunakan ig_user_id [{$igUserId}]");
 
-            // 2. Langkah 1: Buat Media Container
-            Log::info('Instagram: Membuat Media Container Reel...');
-            $containerRes = $this->executeAction($team, 'INSTAGRAM_CREATE_MEDIA_CONTAINER', [
-                'ig_user_id' => (string) $igUserId,
-                'media_type' => 'REELS',
-                'video_url' => $videoUrl,
-                'caption' => $caption,
-            ], $connectedAccountId);
+            $creationId = null;
+            $activeCoverUrl = ! empty($coverUrl) ? $coverUrl : null;
 
-            $creationId = $containerRes['data']['data']['id']
-                ?? ($containerRes['data']['id'] ?? null);
+            // Percobaan pembuatan container (maksimal 2x: sekali dengan cover_url, sekali tanpa jika ditolak/error)
+            for ($attempt = 1; $attempt <= 2; $attempt++) {
+                $containerParams = [
+                    'ig_user_id' => (string) $igUserId,
+                    'media_type' => 'REELS',
+                    'video_url' => $videoUrl,
+                    'caption' => $caption,
+                ];
 
-            if (! $creationId) {
-                throw new Exception('Gagal membuat Media Container: '.json_encode($containerRes));
+                if (! empty($activeCoverUrl)) {
+                    Log::info("Instagram: Membuat Media Container Reel dengan custom cover_url: {$activeCoverUrl}");
+                    $containerParams['cover_url'] = $activeCoverUrl;
+                } else {
+                    Log::info('Instagram: Membuat Media Container Reel tanpa cover_url...');
+                }
+
+                $containerRes = $this->executeAction($team, 'INSTAGRAM_CREATE_MEDIA_CONTAINER', $containerParams, $connectedAccountId);
+
+                if (! ($containerRes['success'] ?? false)) {
+                    if (! empty($activeCoverUrl)) {
+                        Log::warning('Instagram: Pembuatan container dengan cover_url ditolak Meta, mencoba tanpa cover_url...', [
+                            'error' => $containerRes['error'] ?? null,
+                        ]);
+                        $activeCoverUrl = null;
+
+                        continue;
+                    }
+
+                    throw new Exception('Gagal membuat Media Container: '.json_encode($containerRes));
+                }
+
+                $creationId = $containerRes['data']['data']['id'] ?? ($containerRes['data']['id'] ?? null);
+                if (! $creationId) {
+                    throw new Exception('Gagal mendapatkan ID Media Container: '.json_encode($containerRes));
+                }
+
+                // 2. Langkah 2: Polling status media container sampai 'FINISHED' sebelum menerbitkan
+                Log::info("Instagram: Memantau status rendering Container ID [{$creationId}]...");
+                $maxPollAttempts = 36; // 36 x 5s = maksimal 180s (3 menit)
+                $isFinished = false;
+                $hasError = false;
+
+                for ($poll = 1; $poll <= $maxPollAttempts; $poll++) {
+                    sleep(5);
+
+                    $statusRes = $this->executeAction($team, 'INSTAGRAM_GET_POST_STATUS', [
+                        'creation_id' => (string) $creationId,
+                        'container_id' => (string) $creationId,
+                    ], $connectedAccountId);
+
+                    $statusData = $statusRes['data']['data'] ?? ($statusRes['data'] ?? []);
+                    $statusCode = strtoupper((string) ($statusData['status_code'] ?? ($statusData['status'] ?? '')));
+
+                    Log::info("Instagram: Status Container [{$creationId}] ({$poll}/{$maxPollAttempts}): {$statusCode}");
+
+                    if ($statusCode === 'FINISHED') {
+                        $isFinished = true;
+                        break;
+                    }
+
+                    if (in_array($statusCode, ['ERROR', 'EXPIRED'])) {
+                        $hasError = true;
+                        $errorMsg = $statusData['error_message'] ?? "Container berstatus {$statusCode}";
+                        Log::warning("Instagram: Container gagal dirender oleh Meta: {$errorMsg}");
+                        break;
+                    }
+                }
+
+                // Jika error saat menggunakan cover_url, coba ulang satu kali tanpa cover_url
+                if ($hasError && ! empty($activeCoverUrl)) {
+                    Log::warning('Instagram: Container dengan custom thumbnail gagal diproses Meta. Mengulang pembuatan container tanpa cover_url...');
+                    $activeCoverUrl = null;
+                    $creationId = null;
+
+                    continue;
+                }
+
+                if ($isFinished) {
+                    break;
+                }
+
+                // Jika batas polling tercapai namun tidak error, lanjut mencoba publish
+                break;
             }
 
-            // Beri jeda 12 detik agar server Meta selesai memproses dan mengompres video
-            Log::info('Instagram: Menunggu rendering video di server Meta (12 detik)...');
-            sleep(12);
+            if (! $creationId) {
+                throw new Exception('Gagal membuat Media Container yang valid untuk Instagram.');
+            }
 
-            // 3. Langkah 2: Terbitkan Post Reel
+            // 3. Langkah 3: Terbitkan Post Reel
             Log::info("Instagram: Menerbitkan Container ID: {$creationId}...");
             $publishRes = $this->executeAction($team, 'INSTAGRAM_CREATE_POST', [
                 'ig_user_id' => (string) $igUserId,
                 'creation_id' => (string) $creationId,
             ], $connectedAccountId);
+
+            // Retry publish jika Meta masih mengembalikan 'still processing'
+            $retryPublish = 0;
+            while (! ($publishRes['success'] ?? false) && $retryPublish < 3) {
+                $errStr = is_string($publishRes['error'] ?? null) ? $publishRes['error'] : json_encode($publishRes['error'] ?? []);
+                if (str_contains($errStr, 'still processing') || str_contains($errStr, 'not ready')) {
+                    $retryPublish++;
+                    Log::info("Instagram: Server Meta masih memproses, menunggu 15 detik sebelum coba lagi ({$retryPublish}/3)...");
+                    sleep(15);
+                    $publishRes = $this->executeAction($team, 'INSTAGRAM_CREATE_POST', [
+                        'ig_user_id' => (string) $igUserId,
+                        'creation_id' => (string) $creationId,
+                    ], $connectedAccountId);
+                } else {
+                    break;
+                }
+            }
 
             return $publishRes;
 
@@ -455,15 +549,48 @@ class ComposioService
         $tmp = null;
         $path = $videoSource;
         Log::info("YouTube: mempersiapkan unggah video dari sumber: {$videoSource}");
-        if (! is_file($path)) {
-            $tmp = tempnam(sys_get_temp_dir(), 'ytshort_').'.mp4';
-            $dl = Http::timeout(600)->sink($tmp)->get($videoSource);
-            if (! $dl->successful() || ! is_file($tmp) || filesize($tmp) === 0) {
-                @unlink($tmp);
 
-                return ['success' => false, 'error' => 'Gagal mengambil sumber video: '.$videoSource];
+        if (! is_file($path)) {
+            $localResolved = null;
+            if (str_starts_with($videoSource, asset('storage/'))) {
+                $relative = str_replace(asset('storage/'), '', $videoSource);
+                if (Storage::disk('public')->exists($relative)) {
+                    $localResolved = Storage::disk('public')->path($relative);
+                }
+            } elseif (str_contains($videoSource, '/storage/')) {
+                $relative = Str::after($videoSource, '/storage/');
+                if (Storage::disk('public')->exists($relative)) {
+                    $localResolved = Storage::disk('public')->path($relative);
+                }
             }
-            $path = $tmp;
+
+            if ($localResolved && is_file($localResolved)) {
+                $path = $localResolved;
+            } else {
+                $tmp = tempnam(sys_get_temp_dir(), 'ytshort_').'.mp4';
+                $dl = Http::timeout(600)->sink($tmp)->get($videoSource);
+                if (! $dl->successful() || ! is_file($tmp) || filesize($tmp) === 0) {
+                    if ($tmp && is_file($tmp)) {
+                        @unlink($tmp);
+                    }
+
+                    // Fallback jika URL unduhan eksternal sudah kedaluwarsa:
+                    // Ambil berkas video lokal terbaru dari storage disk jika tersedia
+                    $latestVideo = collect(Storage::disk('public')->files('videos'))
+                        ->filter(fn ($f) => str_ends_with(strtolower($f), '.mp4'))
+                        ->sortByDesc(fn ($f) => Storage::disk('public')->lastModified($f))
+                        ->first();
+
+                    if ($latestVideo && Storage::disk('public')->exists($latestVideo)) {
+                        $path = Storage::disk('public')->path($latestVideo);
+                        Log::info("YouTube: fallback ke video lokal terbaru: {$latestVideo}");
+                    } else {
+                        return ['success' => false, 'error' => 'Gagal mengambil sumber video: '.$videoSource];
+                    }
+                } else {
+                    $path = $tmp;
+                }
+            }
         }
         $size = filesize($path);
 
@@ -491,12 +618,28 @@ class ComposioService
                 ],
             ]);
 
-        $location = $init->json('headers.location') ?? $init->json('headers.Location');
+        $initJson = $init->json() ?? [];
+        $location = $initJson['headers']['location'] ?? $initJson['headers']['Location'] ?? null;
+        if (! $location && isset($initJson['data']['headers'])) {
+            $location = $initJson['data']['headers']['location'] ?? $initJson['data']['headers']['Location'] ?? null;
+        }
+
         if (! $location) {
-            @unlink($tmp);
+            if ($tmp && is_file($tmp)) {
+                @unlink($tmp);
+            }
             Log::error('YouTube: gagal membuat sesi resumable', ['http' => $init->status(), 'body' => $init->body()]);
 
-            return ['success' => false, 'error' => 'Gagal membuat sesi upload YouTube: '.$init->body()];
+            $errorCode = $initJson['data']['error']['code'] ?? ($initJson['status'] ?? $init->status());
+            $errorMessage = $initJson['data']['error']['message'] ?? ($initJson['message'] ?? $init->body());
+            $errorReason = $initJson['data']['error']['status'] ?? ($initJson['data']['error']['errors'][0]['reason'] ?? 'unknown');
+
+            return [
+                'success' => false,
+                'error_code' => (int) $errorCode,
+                'error_reason' => (string) $errorReason,
+                'error' => 'Gagal membuat sesi upload YouTube: '.$errorMessage,
+            ];
         }
 
         // 3) kirim byte langsung ke YouTube — timeout panjang, body berupa stream
@@ -510,7 +653,7 @@ class ComposioService
             if (is_resource($handle)) {
                 fclose($handle);
             }
-            if ($tmp) {
+            if ($tmp && is_file($tmp)) {
                 @unlink($tmp);
             }
         }
@@ -519,7 +662,15 @@ class ComposioService
         if (! $put->successful() || ! $videoId) {
             Log::error('YouTube: PUT resumable gagal', ['http' => $put->status(), 'body' => $put->body()]);
 
-            return ['success' => false, 'error' => 'Unggah ke YouTube gagal: '.$put->body()];
+            $putJson = $put->json() ?? [];
+            $errorCode = $putJson['error']['code'] ?? $put->status();
+            $errorMessage = $putJson['error']['message'] ?? $put->body();
+
+            return [
+                'success' => false,
+                'error_code' => (int) $errorCode,
+                'error' => 'Unggah ke YouTube gagal: '.$errorMessage,
+            ];
         }
 
         Log::info("YouTube: video terunggah ({$size} bytes) videoId={$videoId}");
@@ -530,27 +681,50 @@ class ComposioService
     /** 'succeeded' | 'processing' | 'failed' | null (null = video sudah dibuang YouTube) */
     public function youtubeProcessingStatus(Team $team, string $videoId, ?string $connectedAccountId = null): ?string
     {
-        $res = $this->executeAction($team, 'YOUTUBE_VIDEO_DETAILS', [
-            'id' => $videoId, 'part' => 'status,processingDetails',
-        ], $connectedAccountId);
+        $account = $connectedAccountId ?: $this->activeYoutubeAccountId($team);
+        if (! $account) {
+            Log::warning("YouTube: tidak ada connected account YouTube untuk verifikasi status {$videoId}");
 
-        // Tool ini bisa hilang dari katalog Composio (404 ToolNotFound).
-        // Jangan sampai kegagalan verifikasi dilaporkan sebagai "video hilang".
-        if (! ($res['success'] ?? false)) {
-            Log::warning('YouTube: verifikasi status tidak tersedia', [
+            return 'processing';
+        }
+
+        $apiKey = $this->apiKeyFor($team);
+        $base = rtrim(config('services.composio.base_url', 'https://backend.composio.dev/api/v3'), '/');
+
+        // Panggil YouTube Data API langsung lewat proxy Composio (hindari 404 ToolNotFound dari katalog aksi)
+        $resp = Http::withHeaders(['x-api-key' => $apiKey])->timeout(30)
+            ->post($base.'/tools/execute/proxy', [
+                'connected_account_id' => $account,
+                'endpoint' => 'https://www.googleapis.com/youtube/v3/videos?part=status,processingDetails&id='.$videoId,
+                'method' => 'GET',
+            ]);
+
+        if (! $resp->successful() || ($resp->json('status') && $resp->json('status') >= 400)) {
+            Log::warning('YouTube: verifikasi status tidak tersedia atau gagal', [
                 'video' => $videoId,
-                'error' => $res['error'] ?? null,
+                'error' => $resp->body(),
             ]);
 
             return 'processing';
         }
 
-        $items = $res['data']['data']['response_data']['items'] ?? [];
-        if (! $items) {
-            return null;
+        $items = $resp->json('data.items') ?? [];
+        if (empty($items)) {
+            return null; // Video tidak ditemukan di YouTube (dihapus / ditolak)
         }
 
-        return $items[0]['processingDetails']['processingStatus'] ?? ($items[0]['status']['uploadStatus'] ?? null);
+        $processingStatus = $items[0]['processingDetails']['processingStatus'] ?? null;
+        $uploadStatus = $items[0]['status']['uploadStatus'] ?? null;
+
+        if ($processingStatus === 'succeeded' || $uploadStatus === 'processed') {
+            return 'succeeded';
+        }
+
+        if ($processingStatus === 'failed' || $processingStatus === 'terminated' || $uploadStatus === 'rejected' || $uploadStatus === 'failed') {
+            return 'failed';
+        }
+
+        return 'processing';
     }
 
     /** ID connected account YouTube yang ACTIVE (hindari akun EXPIRED). */
@@ -817,5 +991,85 @@ class ComposioService
 
             return ['success' => false, 'error' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Pasang custom thumbnail ke Facebook Video yang sudah terbit menggunakan Graph API
+     */
+    public function setFacebookVideoThumbnail(
+        Team $team,
+        string $pageId,
+        string $videoId,
+        string $thumbnailSource,
+        ?string $connectedAccountId = null
+    ): bool {
+        try {
+            $pageToken = $this->getPageAccessToken($team, $pageId, $connectedAccountId);
+            if (! $pageToken) {
+                Log::warning("Facebook: Gagal mendapatkan Page Token untuk thumbnail video [{$videoId}]");
+
+                return false;
+            }
+
+            // Resolusi file thumbnail lokal
+            $localPath = null;
+            if (is_file($thumbnailSource)) {
+                $localPath = $thumbnailSource;
+            } elseif (str_contains($thumbnailSource, '/storage/')) {
+                $relative = Str::after($thumbnailSource, '/storage/');
+                if (Storage::disk('public')->exists($relative)) {
+                    $localPath = Storage::disk('public')->path($relative);
+                }
+            }
+
+            if (! $localPath || ! is_file($localPath)) {
+                Log::warning("Facebook: File thumbnail lokal tidak ditemukan: {$thumbnailSource}");
+
+                return false;
+            }
+
+            Log::info("Facebook: Mengunggah custom thumbnail ke video ID [{$videoId}]...");
+            $res = Http::timeout(60)
+                ->attach('source', file_get_contents($localPath), 'thumbnail.jpg')
+                ->post("https://graph.facebook.com/v21.0/{$videoId}/thumbnails", [
+                    'access_token' => $pageToken,
+                    'is_preferred' => 'true',
+                ]);
+
+            if ($res->successful() && ($res->json('success') ?? false)) {
+                Log::info("✓ Facebook: Custom thumbnail berhasil dipasang ke video ID [{$videoId}]");
+
+                return true;
+            }
+
+            Log::warning("Facebook: Gagal memasang custom thumbnail (video tetap terbit): {$res->body()}");
+
+            return false;
+        } catch (Throwable $e) {
+            Log::warning("Facebook: Exception saat pasang thumbnail (video tetap terbit): {$e->getMessage()}");
+
+            return false;
+        }
+    }
+
+    /**
+     * Update custom thumbnail video YouTube via Composio tool YOUTUBE_UPDATE_THUMBNAIL
+     */
+    public function updateYoutubeThumbnail(
+        Team $team,
+        string $videoId,
+        string $thumbnailUrl,
+        ?string $connectedAccountId = null
+    ): array {
+        $account = $connectedAccountId ?: $this->activeYoutubeAccountId($team);
+
+        Log::info("YouTube: Mengirim permintaan update thumbnail untuk video [{$videoId}]...");
+
+        return $this->executeAction($team, 'YOUTUBE_UPDATE_THUMBNAIL', [
+            'videoId' => $videoId,
+            'video_id' => $videoId,
+            'thumbnailUrl' => $thumbnailUrl,
+            'thumbnail_url' => $thumbnailUrl,
+        ], $account);
     }
 }

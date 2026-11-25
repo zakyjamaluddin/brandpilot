@@ -65,6 +65,7 @@ class CloudflareWorkerChecker
                 'caption' => (string) ($data['caption'] ?? $data['title'] ?? ''),
                 'video_url' => $data['video_url'] ?? "https://www.tiktok.com/@{$cleanUsername}/video/{$postId}",
                 'direct_download_url' => $data['direct_download_url'] ?? null,
+                'cover_url' => $data['cover'] ?? ($data['cover_url'] ?? ($data['origin_cover'] ?? null)),
                 'is_carousel' => $isCarousel,
                 'images' => $images,
                 'posted_at' => isset($data['create_time']) ? Carbon::parse($data['create_time']) : now(),

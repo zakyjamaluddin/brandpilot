@@ -134,6 +134,7 @@ class ApifyChecker
                     'caption' => (string) $caption,
                     'video_url' => (string) $videoUrl,
                     'direct_download_url' => $item['videoDownloadUrl'] ?? null,
+                    'cover_url' => $item['videoMeta']['coverUrl'] ?? ($item['coverUrl'] ?? ($item['originCover'] ?? null)),
                     'is_carousel' => $isCarousel,
                     'images' => is_array($images) ? $images : [],
                     'posted_at' => isset($item['createTimeISO']) ? Carbon::parse($item['createTimeISO']) : now(),

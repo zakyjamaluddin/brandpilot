@@ -25,8 +25,24 @@ Route::get('/composio/callback/{team}/{platform}', [ComposioCallbackController::
     ->middleware(['web', 'auth']);
 
 // routes/web.php
+use App\Http\Controllers\GoogleAuthController;
+use App\Http\Controllers\TeamInvitationController;
 use App\Http\Controllers\WebPushSubscriptionController;
 
 Route::post('/webpush/subscribe', [WebPushSubscriptionController::class, 'store'])
     ->middleware(['web', 'auth'])
     ->name('webpush.subscribe');
+
+// Undangan Mengelola Tim (Team Invitation)
+Route::get('/invitations/{code}', [TeamInvitationController::class, 'show'])
+    ->middleware(['web'])
+    ->name('teams.invitation');
+
+// Google OAuth Sign-In & Callback
+Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])
+    ->middleware(['web'])
+    ->name('auth.google.redirect');
+
+Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])
+    ->middleware(['web'])
+    ->name('auth.google.callback');

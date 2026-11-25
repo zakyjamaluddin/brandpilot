@@ -23,6 +23,8 @@ class PollTikTokPosts extends Command
         ZakyTikTokDownloaderService $downloader,
         GeminiService $gemini
     ): void {
+        set_time_limit(0);
+
         $this->info('Menjalankan siklus multi-tier polling konten TikTok...');
 
         // 1. Tarik tenant aktif yang sudah menyetel URL TikTok dan hak kepemilikan
@@ -71,7 +73,8 @@ class PollTikTokPosts extends Command
                 $mediaResult = $downloader->downloadMedia(
                     $latestPost['video_url'],
                     $latestPost['direct_download_url'] ?? null,
-                    $latestPost['images'] ?? []
+                    $latestPost['images'] ?? [],
+                    $latestPost['cover_url'] ?? null
                 );
                 $mediaType = $mediaResult['type'] ?? 'video';
 
@@ -107,10 +110,10 @@ class PollTikTokPosts extends Command
                     $finalDescription = $aiResult['description'];
                 }
 
-                // URL yang akan dikirim ke media sosial
-                $mediaUrlForSocialMedia = ! empty($mediaResult['public_download_url'])
-                    ? $mediaResult['public_download_url']
-                    : ($mediaResult['public_url'] ?? '');
+                // Prioritaskan URL berkas permanen di storage publik BrandPilot agar tidak pernah kedaluwarsa (404)
+                $mediaUrlForSocialMedia = ! empty($mediaResult['public_url'])
+                    ? $mediaResult['public_url']
+                    : ($mediaResult['public_download_url'] ?? '');
 
                 $scheduledAt = now();
 
@@ -123,6 +126,7 @@ class PollTikTokPosts extends Command
                     'original_caption' => $originalCaption,
                     'ai_generated_caption' => $finalDescription,
                     'video_url' => $mediaUrlForSocialMedia,
+                    'thumbnail_url' => $mediaResult['thumbnail_public_url'] ?? null,
                     'media_gallery' => $mediaResult['public_gallery'] ?? null,
                     'caption_type' => ($setting?->auto_caption_enabled ? 'gemini_ai' : 'manual'),
                     'status' => 'pending',

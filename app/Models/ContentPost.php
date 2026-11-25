@@ -18,6 +18,7 @@ class ContentPost extends Model
         'original_caption',
         'ai_generated_caption',
         'video_url',
+        'thumbnail_url',
         'media_gallery',
         'caption_type',
         'status',

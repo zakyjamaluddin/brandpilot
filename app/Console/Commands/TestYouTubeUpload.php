@@ -38,10 +38,18 @@ class TestYouTubeUpload extends Command
 
         $post = $this->option('post')
             ? ContentPost::find($this->option('post'))
-            : ContentPost::latest()->first();
+            : ContentPost::where(function ($q) {
+                $q->whereNull('media_type')->orWhere('media_type', '!=', 'carousel');
+            })->whereNotNull('video_url')->latest()->first();
 
         if (! $post) {
-            $this->error('Belum ada ContentPost di database.');
+            $this->error('Belum ada ContentPost berupa video di database.');
+
+            return self::FAILURE;
+        }
+
+        if ($post->media_type === 'carousel') {
+            $this->error("Post #{$post->id} adalah konten Carousel (album foto). YouTube Shorts hanya mendukung format video!");
 
             return self::FAILURE;
         }

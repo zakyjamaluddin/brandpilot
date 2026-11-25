@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\ContentPost;
 use App\Models\SocialIntegration;
 use App\Notifications\ContentPublishedPushNotification;
+use App\Notifications\YouTubeThumbnailNoticePushNotification;
 use App\Services\ComposioService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -54,6 +55,7 @@ class PublishContentJob implements ShouldQueue
         }
 
         $publishedPlatforms = [];
+        $youtubeThumbnailFailed = false;
         // Ambil ID sosmed yang mungkin sudah tersimpan sebelumnya
         $platformPostIds = (array) ($this->post->platform_post_ids ?? []);
 
@@ -64,8 +66,26 @@ class PublishContentJob implements ShouldQueue
         $isCarousel = ($this->post->media_type === 'carousel');
         $gallery = (array) ($this->post->media_gallery ?? []);
 
-        $isCarousel = ($this->post->media_type === 'carousel');
-        $gallery = (array) ($this->post->media_gallery ?? []);
+        // Pastikan URL video dapat diakses (fallback ke berkas lokal jika URL eksternal kedaluwarsa)
+        $effectiveVideoUrl = $this->post->video_url;
+        if (! empty($effectiveVideoUrl) && ! $isCarousel && ! str_contains($effectiveVideoUrl, '/storage/')) {
+            try {
+                $headCheck = Http::timeout(3)->head($effectiveVideoUrl);
+                if (! $headCheck->successful()) {
+                    $latestLocal = collect(Storage::disk('public')->files('videos'))
+                        ->filter(fn ($f) => str_ends_with(strtolower($f), '.mp4'))
+                        ->sortByDesc(fn ($f) => Storage::disk('public')->lastModified($f))
+                        ->first();
+
+                    if ($latestLocal && Storage::disk('public')->exists($latestLocal)) {
+                        $effectiveVideoUrl = asset('storage/'.$latestLocal);
+                        Log::info("Publish: URL video eksternal kedaluwarsa, fallback ke storage lokal: {$effectiveVideoUrl}");
+                    }
+                }
+            } catch (\Throwable) {
+                // Abaikan jika timeout head, biarkan URL asli dicoba
+            }
+        }
 
         foreach ($integrations as $integration) {
             // Jangan pernah memposting ulang platform yang sudah berhasil
@@ -154,7 +174,7 @@ class PublishContentJob implements ShouldQueue
                         // Native Video Post
                         $res = $composio->executeAction($team, 'FACEBOOK_CREATE_VIDEO_POST', [
                             'page_id' => (string) $pageId,
-                            'file_url' => $this->post->video_url,
+                            'file_url' => $effectiveVideoUrl,
                             'title' => $postTitle,
                             'description' => $finalDescription,
                             'published' => true,
@@ -170,6 +190,17 @@ class PublishContentJob implements ShouldQueue
                             'platform_post_ids' => $platformPostIds,
                         ]);
                         Log::info('✓ Facebook terbit dengan sukses!');
+
+                        // Pasang custom thumbnail ke video Facebook jika tersedia
+                        if (! $isCarousel && ! empty($this->post->thumbnail_url) && $platformPostIds['facebook'] !== 'fb_success') {
+                            $composio->setFacebookVideoThumbnail(
+                                $team,
+                                (string) $pageId,
+                                $platformPostIds['facebook'],
+                                $this->post->thumbnail_url,
+                                $connId
+                            );
+                        }
                     }
                 }
 
@@ -190,9 +221,10 @@ class PublishContentJob implements ShouldQueue
                         // Native Reel Video Post
                         $res = $composio->postInstagramReel(
                             $team,
-                            $this->post->video_url,
+                            $effectiveVideoUrl,
                             $finalDescription,
-                            $connId
+                            $connId,
+                            $this->post->thumbnail_url
                         );
                     }
 
@@ -204,7 +236,7 @@ class PublishContentJob implements ShouldQueue
                             'published_at' => now(),
                             'platform_post_ids' => $platformPostIds,
                         ]);
-                        Log::info('✓ Instagram Carousel terbit dengan sukses!');
+                        Log::info('✓ Instagram terbit dengan sukses!');
                     }
                 }
 
@@ -225,7 +257,7 @@ class PublishContentJob implements ShouldQueue
                     $tags = ! empty($matches[1]) ? array_slice($matches[1], 0, 8) : ['Shorts', 'Viral', 'BrandPilot'];
 
                     // Auth dari Composio, byte video dikirim langsung ke YouTube (resumable upload)
-                    $res = $composio->uploadYoutubeVideo($team, $this->post->video_url, [
+                    $res = $composio->uploadYoutubeVideo($team, $effectiveVideoUrl, [
                         'title' => substr($postTitle, 0, 95),
                         'description' => $finalDescription,
                         'tags' => $tags,
@@ -243,28 +275,64 @@ class PublishContentJob implements ShouldQueue
                             'platform_post_ids' => $platformPostIds,
                         ]);
 
+                        // Upaya memasang custom thumbnail ke YouTube
+                        if (! empty($this->post->thumbnail_url)) {
+                            Log::info("YouTube: Mengunggah custom thumbnail ke video ID {$res['video_id']}...");
+                            $thumbRes = $composio->updateYoutubeThumbnail(
+                                $team,
+                                (string) $res['video_id'],
+                                $this->post->thumbnail_url,
+                                $connId
+                            );
+
+                            if (! ($thumbRes['success'] ?? false)) {
+                                $youtubeThumbnailFailed = true;
+                                Log::warning('YouTube: Pemasangan thumbnail belum berhasil (video tetap tayang normal): '.($thumbRes['error'] ?? 'Unknown error'));
+                            } else {
+                                Log::info("✓ YouTube: Custom thumbnail berhasil dipasang ke video ID {$res['video_id']}!");
+                            }
+                        }
+
                         // Pastikan YouTube tidak membuang videonya (transcode gagal)
                         dispatch(function () use ($composio, $team, $res, $connId) {
-                            sleep(45);
+                            sleep(15);
                             $status = $composio->youtubeProcessingStatus($team, $res['video_id'], $connId);
                             Log::info("YouTube: status pemrosesan {$res['video_id']} = ".($status ?? 'HILANG'));
-                        })->delay(now()->addSeconds(30));
+                        })->delay(now()->addSeconds(15));
 
                     } else {
-                        // Jika respon mengandung error kuota 429 RESOURCE_EXHAUSTED:
-                        if (isset($response['error']['code']) && $response['error']['code'] == 429) {
-                            Log::warning('YouTube Quota Harian Habis (Reset jam 15.00 WIB). Postingan dijadwalkan ulang.');
+                        $isQuotaError = false;
+                        $errCode = $res['error_code'] ?? null;
+                        $errReason = strtolower((string) ($res['error_reason'] ?? ''));
+                        $errMsg = strtolower((string) ($res['error'] ?? ''));
 
-                            // Jadwalkan ulang postingan ke jam reset kuota berikutnya (jam 15:00 WIB)
+                        if ($errCode === 429 || $errReason === 'resource_exhausted' || $errReason === 'ratelimitexceeded') {
+                            $isQuotaError = true;
+                        } elseif ($errCode === 403 && (str_contains($errMsg, 'quota') || str_contains($errMsg, 'uploadlimitexceeded') || str_contains($errReason, 'quota'))) {
+                            $isQuotaError = true;
+                        } elseif (str_contains($errMsg, 'quota exceeded') || str_contains($errMsg, 'resource_exhausted') || str_contains($errMsg, 'upload limit exceeded')) {
+                            $isQuotaError = true;
+                        }
+
+                        if ($isQuotaError) {
+                            Log::warning('YouTube Quota Harian Habis (Reset jam 15.00 WIB). Postingan dijadwalkan ulang.', [
+                                'error' => $res['error'] ?? null,
+                            ]);
+
+                            // Jadwalkan ulang postingan ke jam reset kuota berikutnya (jam 15:05 WIB)
+                            $nextReset = now()->setTime(15, 5);
+                            if (now()->isAfter($nextReset)) {
+                                $nextReset->addDay();
+                            }
+
                             $this->post->update([
                                 'status' => 'pending',
-                                'scheduled_at' => now()->isAfter(now()->setTime(15, 0))
-                                    ? now()->addDay()->setTime(15, 5)
-                                    : now()->setTime(15, 5),
+                                'scheduled_at' => $nextReset,
                             ]);
 
                             return;
                         }
+
                         Log::error('YouTube: upload gagal', ['error' => $res['error'] ?? 'unknown']);
                     }
                 }
@@ -287,6 +355,13 @@ class PublishContentJob implements ShouldQueue
             // Push hanya saat ada publikasi baru — jangan kirim "sukses" palsu
             foreach ($team->members as $member) {
                 $member->notify(new ContentPublishedPushNotification($this->post));
+            }
+        }
+
+        // Jika upload video YouTube berhasil namun pemasangan thumbnail belum berhasil, kirim pemberitahuan edukatif ramah
+        if ($youtubeThumbnailFailed) {
+            foreach ($team->members as $member) {
+                $member->notify(new YouTubeThumbnailNoticePushNotification($this->post));
             }
         }
 

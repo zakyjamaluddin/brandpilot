@@ -19,19 +19,23 @@ class ZakyTikTokDownloaderService
     public function downloadMedia(
         string $tiktokUrl,
         ?string $fallbackDownloadUrl = null,
-        array $fallbackImages = []
+        array $fallbackImages = [],
+        ?string $fallbackCoverUrl = null
     ): array {
         Log::info("Memulai ekstraksi media TikTok (Video/Carousel) via Zaky Apps: {$tiktokUrl}");
 
         try {
-            $response = Http::timeout(120)->post($this->endpoint, [
+            $response = Http::timeout(600)->post($this->endpoint, [
                 'url' => $tiktokUrl,
                 'download' => true,
+                'upscale' => true,
             ]);
 
             if ($response->successful() && ($response->json('ok') ?? false)) {
                 $data = $response->json();
                 $mediaType = $data['type'] ?? 'video';
+                $coverCandidate = $data['cover'] ?? ($data['thumbnail'] ?? ($data['origin_cover'] ?? $fallbackCoverUrl));
+                $thumbResult = $this->downloadThumbnail($coverCandidate);
 
                 // ==========================================
                 // 1. JIKA KONTEN BERUPA CAROUSEL (FOTO / ZIP)
@@ -86,16 +90,20 @@ class ZakyTikTokDownloaderService
                         'public_gallery' => array_slice($publicGallery, 0, 10),
                         'public_url' => $publicGallery[0] ?? '',
                         'local_path' => $localGallery[0] ?? '',
+                        'thumbnail_local_path' => $thumbResult['local_path'] ?? null,
+                        'thumbnail_public_url' => $thumbResult['public_url'] ?? ($publicGallery[0] ?? null),
                     ];
                 }
 
                 // ==========================================
                 // 2. JIKA KONTEN BERUPA VIDEO (DEFAULT)
                 // ==========================================
-                $videoDownloadUrl = $data['download']['url'] ?? ($data['video']['url'] ?? null);
+                $videoDownloadUrl = $data['video_1080p']['url'] ?? ($data['download']['url'] ?? ($data['video']['url'] ?? null));
+                $is1080p = ! empty($data['video_1080p']['url']) || (($data['download']['quality'] ?? '') === '1080p');
 
                 if ($videoDownloadUrl) {
-                    $fileContents = Http::timeout(180)->get($videoDownloadUrl)->body();
+                    Log::info('Zaky Apps: Mengunduh video '.($is1080p ? '1080p HD' : 'Original').": {$videoDownloadUrl}");
+                    $fileContents = Http::timeout(300)->get($videoDownloadUrl)->body();
                     $filename = 'videos/'.Str::random(20).'.mp4';
                     Storage::disk('public')->put($filename, $fileContents);
 
@@ -107,6 +115,9 @@ class ZakyTikTokDownloaderService
                         'title' => $data['title'] ?? '',
                         'id' => $data['id'] ?? null,
                         'filesize' => $data['download']['bytes'] ?? strlen($fileContents),
+                        'is_1080p' => $is1080p,
+                        'thumbnail_local_path' => $thumbResult['local_path'] ?? null,
+                        'thumbnail_public_url' => $thumbResult['public_url'] ?? null,
                     ];
                 }
             }
@@ -119,14 +130,18 @@ class ZakyTikTokDownloaderService
         // ==========================================
         // 3. FALLBACK: TIKWM DIRECT URL / SLIDES
         // ==========================================
-        return $this->downloadFromFallback($tiktokUrl, $fallbackDownloadUrl, $fallbackImages);
+        return $this->downloadFromFallback($tiktokUrl, $fallbackDownloadUrl, $fallbackImages, $fallbackCoverUrl);
     }
 
     /**
      * Jalankan proses unduh dari fallback metadata jika ZakyApps gagal.
      */
-    protected function downloadFromFallback(string $tiktokUrl, ?string $fallbackDownloadUrl, array $fallbackImages): array
-    {
+    protected function downloadFromFallback(
+        string $tiktokUrl,
+        ?string $fallbackDownloadUrl,
+        array $fallbackImages,
+        ?string $fallbackCoverUrl = null
+    ): array {
         // 1. Fallback Carousel
         if (! empty($fallbackImages)) {
             Log::info('Downloader Fallback: Mengunduh foto carousel dari metadata TikWM...');
@@ -150,6 +165,8 @@ class ZakyTikTokDownloaderService
             }
 
             if (! empty($localGallery)) {
+                $thumbResult = $this->downloadThumbnail($fallbackCoverUrl);
+
                 return [
                     'type' => 'carousel',
                     'title' => '',
@@ -158,6 +175,8 @@ class ZakyTikTokDownloaderService
                     'public_gallery' => array_slice($publicGallery, 0, 10),
                     'public_url' => $publicGallery[0] ?? '',
                     'local_path' => $localGallery[0] ?? '',
+                    'thumbnail_local_path' => $thumbResult['local_path'] ?? null,
+                    'thumbnail_public_url' => $thumbResult['public_url'] ?? ($publicGallery[0] ?? null),
                 ];
             }
         }
@@ -170,6 +189,8 @@ class ZakyTikTokDownloaderService
                 $filename = 'videos/'.Str::random(20).'.mp4';
                 Storage::disk('public')->put($filename, $fileContents);
 
+                $thumbResult = $this->downloadThumbnail($fallbackCoverUrl);
+
                 return [
                     'type' => 'video',
                     'local_path' => $filename,
@@ -178,10 +199,70 @@ class ZakyTikTokDownloaderService
                     'title' => '',
                     'id' => null,
                     'filesize' => strlen($fileContents),
+                    'thumbnail_local_path' => $thumbResult['local_path'] ?? null,
+                    'thumbnail_public_url' => $thumbResult['public_url'] ?? null,
                 ];
             }
         }
 
         throw new Exception("Semua sumber pengunduh (Zaky Apps dan fallback TikWM) gagal mengekstrak media: {$tiktokUrl}");
+    }
+
+    /**
+     * Unduh dan konversi gambar cover/thumbnail menjadi JPEG standar di storage publik.
+     *
+     * @return array{local_path: string, relative_path: string, public_url: string}|null
+     */
+    public function downloadThumbnail(?string $coverUrl): ?array
+    {
+        if (empty($coverUrl)) {
+            return null;
+        }
+
+        try {
+            Log::info("Mengunduh thumbnail dari URL: {$coverUrl}");
+            $res = Http::timeout(30)
+                ->withHeaders([
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'Referer' => 'https://www.tiktok.com/',
+                ])
+                ->get($coverUrl);
+
+            if (! $res->successful() || empty($res->body())) {
+                Log::warning("Gagal mengunduh thumbnail dari [{$coverUrl}]: HTTP {$res->status()}");
+
+                return null;
+            }
+
+            $rawBody = $res->body();
+            $jpegData = null;
+
+            // Normalisasi ke JPEG standar menggunakan GD jika tersedia (kompatibel Meta & YouTube)
+            if (function_exists('imagecreatefromstring') && function_exists('imagejpeg')) {
+                $img = @imagecreatefromstring($rawBody);
+                if ($img !== false) {
+                    ob_start();
+                    imagejpeg($img, null, 90);
+                    $jpegData = ob_get_clean();
+                    imagedestroy($img);
+                }
+            }
+
+            $finalData = $jpegData ?: $rawBody;
+            $filename = 'thumbnails/'.Str::random(20).'.jpg';
+            Storage::disk('public')->put($filename, $finalData);
+
+            Log::info("Thumbnail berhasil disimpan: {$filename}");
+
+            return [
+                'local_path' => Storage::disk('public')->path($filename),
+                'relative_path' => $filename,
+                'public_url' => asset('storage/'.$filename),
+            ];
+        } catch (Throwable $e) {
+            Log::warning('Gagal memproses thumbnail: '.$e->getMessage());
+
+            return null;
+        }
     }
 }

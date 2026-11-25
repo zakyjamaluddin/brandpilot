@@ -97,6 +97,7 @@ class TikWmChecker
                         'caption' => (string) ($video['title'] ?? ''),
                         'video_url' => "https://www.tiktok.com/@{$cleanHandle}/video/{$videoId}",
                         'direct_download_url' => $video['play'] ?? ($video['wmplay'] ?? null),
+                        'cover_url' => $video['cover'] ?? ($video['origin_cover'] ?? null),
                         'is_carousel' => $isCarousel,
                         'images' => is_array($images) ? $images : [],
                         'posted_at' => isset($video['create_time'])
