@@ -52,17 +52,31 @@
     }
 
     /* Modal harus di atas sidebar & topbar.
-       .fi-main sengaja diberi z-index:1 (membentuk stacking context), sehingga
-       modal yang dirender di dalamnya bisa tertindih sidebar/topbar.
+       Jangan memberi z-index pada .fi-main agar tidak membentuk stacking context
+       yang memenjarakan modal di bawah .fi-sidebar / .fi-topbar.
+       Begitu pula .fi-ta-ctn / .fi-section yang memakai backdrop-filter membentuk
+       stacking context sendiri, jadi naikkan z-index-nya saat modal terbuka di dalamnya.
        JANGAN menaikkan .fi-modal-close-overlay: overlay default z-40, window z-50;
        kalau overlay dinaikkan melewati window, isi modal tertutup lapisan hitam. */
     .fi-modal {
         z-index: 9999 !important;
     }
 
-    .fi-layout, .fi-main {
+    .fi-layout {
         position: relative;
         z-index: 1;
+    }
+
+    .fi-main {
+        position: relative;
+    }
+
+    .fi-ta-ctn:has(.fi-modal-open),
+    .fi-ta-ctn:has([aria-modal="true"]),
+    .fi-section:has(.fi-modal-open),
+    .fi-section:has([aria-modal="true"]) {
+        position: relative;
+        z-index: 9999 !important;
     }
 
     /* ==========================================================================
